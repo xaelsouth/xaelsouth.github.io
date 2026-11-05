@@ -51,7 +51,7 @@ make CROSS_COMPILE=arm-linux-gnueabihf-
 <p>Music is generated with an emulated OPL2 (AdLib) chip and mixed with sound effects through ALSA; it does not require MIDI hardware. <code>-nomusic</code> and <code>-nosfx</code> disable either component, while <code>-nosound</code> disables audio initialization altogether.</p>
 <h2 id="rendering-options">Rendering options</h2>
 <p>Optional visual features include <code>-flashlight</code>, <code>-brightmaps</code>, and <code>-translucent</code>; these are off by default. <code>-showfps</code> displays a frame-rate counter.</p>
-<h3 id="vertical-view-freelook">Vertical view (freelook)</h3>
+<h2 id="vertical-view-freelook">Vertical view (freelook)</h2>
 <p>Original DOOM has no way to look up or down. fbDOOM adds an optional vertical view, enabled with <code>-freelook</code>. Mouse up/down, PgUp/PgDn and End (to re-center) tilt the view as a horizon shift rather than true 3D pitch, which keeps it cheap for the software renderer. It affects local view state only, so demos and netgames are unaffected. Without <code>-freelook</code>, the mouse moves the player forward and back as in classic DOOM. Add <code>-invertlook</code>, or set <code>mouse_invert_look 1</code> in <code>default.cfg</code>, to invert the vertical mouse axis.</p>
 <h2 id="further-reading">Further reading</h2>
 <p>For build switches, platform notes, and more detail on the PXP path, see the project’s <a href="https://github.com/xaelsouth/fbDOOM/blob/master/README.TXT">README</a> and <a href="https://github.com/xaelsouth/fbDOOM/tree/master/fbdoom">fbdoom source directory</a>.</p>
