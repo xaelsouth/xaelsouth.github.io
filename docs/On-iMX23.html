@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boards – xaelsouth.github.io</title>
+<meta name="description" content="Why bother with such rusty stuff at all? Just for fun. Kind of attached to fixing broken or incomplete things. Perhaps two and a half people might find this hel">
+<link rel="canonical" href="https://xaelsouth.github.io/On-iMX23.html">
+<style>
+body{font:16px/1.6 system-ui,sans-serif;margin:0;display:flex;flex-wrap:wrap}
+nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa}
+main{flex:1 1 30em;max-width:60em;padding:1em 2em}
+pre{background:#f6f8fa;padding:1em;overflow:auto}
+code{background:#f6f8fa}table{border-collapse:collapse}
+td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
+</style>
+</head>
+<body>
+<nav><h1 id="home"><a href="index.html">Home</a></h1>
+<h2 id="imx23"><a href="On-iMX23.html">iMX23</a></h2></nav>
+<main><p>Why bother with such rusty stuff at all? Just for fun. Kind of attached to fixing broken or incomplete things. Perhaps two and a half people might find this helpful too.</p>
+<h1 id="boards">Boards</h1>
+<p>Recently, whilst tidying up my stuff after moving into a new house, I found these two boards: <a href="https://www.olimex.com/Products/OLinuXino/iMX233/iMX233-OLinuXino-MINI/open-source-hardware">Olinuxino Mini</a> and <a href="https://www.nxp.com/design/design-center/development-boards-and-designs/IMX23EVK">iMX233 EVK</a> boards. Both are built with iMX233 SoC which comes originally from Freescale what had later become NXP. (I should have said 'came' since iMX233 SoC is officially obsolete and discontinued since 2019.)</p>
+<blockquote>
+<p>[!TIP]
+For less patient readers: here is my <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">Buildroot for imx23</a> branch which includes all patches I made in attempt to provide better support for the iMX23 platform. I hope it might be interesting for someone who is considering or counting out options to upgrade a fleet of iMX23 based devices. </p>
+</blockquote>
+<h1 id="hardware-drivers-tools">Hardware, drivers, tools</h1>
+<p>Initial search on the internet brought me to <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">OpenWRT iMX233 Olinuxino</a> page. The first impression was less than great. I would have expected mature SoC platform, but looking at what is under 'Working' it appears that almost only USB works?.. Considering 'last worked with' - everything else might or might not work. To jump ahead: I just wanted to play a bit with a very cool <a href="https://directfb2.github.io">DirectFB2</a> project and LCD attached to iMX233 EVK to see what DirectFB2 could be useful for, but... Well, it's open source, so ~~save~~ help yourselves!</p>
+<p>Next stop to check for the board support was <a href="https://buildroot.org">Buildroot</a>. Luckily enough Buildroot includes configuration files for both boards. Having enough experience with Buildroot I forked it into <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">https://github.com/xaelsouth/buildroot/tree/feature/imx23</a>, cloned and then kicked off the build:</p>
+<pre><code class="language-shell">make O=output/imx233_olinuxino olimex_imx233_olinuxino_defconfig &amp;&amp; cd output/imx233_olinuxino &amp;&amp; make -j$(nproc)
+make O=output/imx233_evk imx23evk_defconfig &amp;&amp; cd output/imx233_evk &amp;&amp; make -j$(nproc)
+</code></pre>
+<p>Waiting :hourglass: :coffee: :hourglass: :coffee: :hourglass: ...</p>
+<p>Few coffee cups later I was presented with sdcard.img - one for each board - ready to write to SD card. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/readme.txt">iMX233 readme</a> and <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/olimex/imx233_olinuxino/readme.txt">Olinuxino readme</a> will explain that better than I would ever be able to do. The only difference is that Olinuxino uses micro SD card vs. iMX233 EVK wants SD card.</p>
+<h2 id="olinuxino-mini">Olinuxino Mini</h2>
+<p>According to the <a href="https://github.com/OLIMEX/OLINUXINO/blob/master/HARDWARE/iMX233-OLinuXino-Mini/1.%20Latest%20hardware%20revision/iMX233-OLINUXINO-MINI%20hardware%20revision%20E/iMX233-OLINUXINO-MINI_Rev_E.pdf">schematics</a> Olinuxino Mini does not exactly have a lot of hardware, what could have been tested after booting from uSD card:</p>
+<ul>
+<li>works: uSD card/which is obviously SPI, USB host, RTC with watchdog, GPIO</li>
+<li>does not work: line in, line out, composite video/TV-out</li>
+<li>untested: JTAG, PWM, I2C, DCP (crypto hardware), LRADC (analog to digital converter)</li>
+</ul>
+<h2 id="imx233-evk">iMX233 EVK</h2>
+<p>In terms of hardware iMX233 EVK is way more interesting, just look at the <a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">schematics (SPF_77066.pdf)</a>! The board is fitted with 8-bit NAND, UART, ENC28J60 SPI Ethernet, SD card, array of buttons, LCD, I2C devices (ADC, accelerometer, 24LC128 EEPROM), two PWM controlled LEDs. 128MB(!) RAM is quite cool too! Maybe I could run sort of a web kiosk thing with that board... :yum:, but back to reality.</p>
+<p>After booting from SD card the LCD will immediately light up, which means that LCD and PWM used as LCD backlight work. Check.</p>
+<p>Sad, but SPI Ethernet is multiplexed with uSD card and can work only if booted from USB or NAND.</p>
+<p>Application UART works, so at least we could <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">SLIP</a> at no less than 115200 bps or approx. 10KB/s :unamused:. Check.</p>
+<p>While trying to test accelerometer and EEPROM sitting on I2C bus, I quickly realised that using SD card for the development with plugging and unplugging really sucks. Therefore I had considered ordering of <a href="https://linux-automation.com/en/products/usb-sd-mux-fast.html">USB-SD-Mux FAST</a> and even its price, approx. 120€, didn't go down the wrong pipe, but I would have to wait for several days, or maybe even weeks, until the package arrives from Europe! Anyway, right after spending 120€ I came up with the idea of trying USB boot. Unfortunately, due to the old hardware and not very well maintained drivers and tools I ran into a whole bunch of bugs and issues. Below I will be describing how to solve them.</p>
+<h1 id="booting-via-usb">Booting via USB</h1>
+<p>According to the <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a>, iMX23 ROM loads so called bootstream from via DIP switch or OTP fuses configured boot media to perform hardware initialisation and to finally boot Linux. Bootstream is usually split into multiple bootlets: one will initialise power supply, next one clocks and RAM, third one optionally creates ATAGS for the Linux kernel command line. Even the Linux kernel will be considered as bootlet. Since a picture is worth thousand words, here it is as good as taken from <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">i.MX23 Linux BSP User Guide</a>: 
+<img width="1004" height="454" alt="Screenshot from 2026-07-17 20-16-25" src="https://github.com/user-attachments/assets/5caf03dd-238f-46db-825d-9a67526fe8a9" /></p>
+<p>Bootlets can be found in the Buildroot tree <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/boot/mxs-bootlets">boot/mxs-bootlets</a>. When using mxs-bootlets the boot sequence is as follows:
+1. power_prep for power supply initialisation
+2. boot_prep for clock and RAM initialisation
+3. optional Boot (proper). Can be used to load device tree, initial ramdisk - if applicable, and Linux kernel from any media and finally boot into
+4. Linux kernel with included initial ramdisk and attached device tree. Linux kernel command line may:
+    1. populated by U-Boot
+    2. or written out as bootargs in the device tree
+    3. or can be compiled into the Linux kernel statically</p>
+<blockquote>
+<p>[!NOTE]
+Using mxs-bootlets makes sense if long-term proven old bootlets for power and RAM initialisation have to be preserved.</p>
+</blockquote>
+<p>Although mxs-bootlets work with iMX233 EVK board, using them does not make much sense since U-Boot replaces bootlets with its own implementation. In that case, the bootstream will include exactly two bootlets. For example, bootlets being used to boot from SD card:
+1. U-Boot SPL for power and RAM initialisation
+2. U-Boot (proper) to boot Linux</p>
+<p>Now enough about bootstreams and their alternatives. How to use them for USB boot?</p>
+<p>Windows users might be considering <a href="https://github.com/nxp-imx/sb_loader/releases/download/1.0/sb_loader.exe">sb_loader</a>. Don't know how or whether it works, sorry.</p>
+<p>Lucky Linux users like me can use <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/imx-sb-loader">sb_loader</a>, which will be compiled as a host utility. While creating imx-sb-loader package I took the liberty of including the <a href="https://raw.githubusercontent.com/Rockbox/rockbox/refs/heads/master/utils/imxtools/sbtools/sbloader.c">source file</a> in the package. BTW, sbloader.c has been developed in 2010, 16 years ago at the time of writing, and still works - very impressive!</p>
+<p>Having sb_loader I was still missing the bootstream (something with .sb file extension) in the folder with all build artefacts, usually output/images. Turns out, <strong>BR2_TARGET_UBOOT_FORMAT_SB</strong> must be enabled and u-boot.sb will be copied along with other binaries. Having DIP switch set to 0000 and debug serial (115200 8N1) connected using USB to RS232 serial cable, let's boot u-boot.sb:</p>
+<pre><code class="language-shell"># Host PC
+sudo output/imx233_evk/host/bin/sb_loader -d -p hid output/imx233_evk/images/u-boot.sb
+Device: 066f:3780 @ 1.76
+libusb: error [submit_control_transfer] submiturb failed, errno=16
+Cannot probe transfer size, using default.
+Transfer size: 1024
+Status: Unknown Error
+</code></pre>
+<p>That did not go well. Also, only <code>HTLC</code> appears in the debug console. Nothing else happens. <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a> reveals that <strong>L</strong> is LOAD and <strong>C</strong> is CALL. BootROM loads and calls U-Boot SPL and this gets stuck there for unknown reason, whilst the same code works when booting from SD card :confused:. Nah, at least something works! (Reading this one might recognize how low my expectation to find something working actually are.)</p>
+<p>... here I was digging for three halfdays ...</p>
+<p>It turns out that something in U-Boot SPL must have gone wrong with the RAM size detection. After applying this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/uboot/2024.04/0008-no-ramsize-detection.patch">patch</a> I can finally see U-Boot prompt, yay!</p>
+<pre><code class="language-console">HTLCLJ
+
+U-Boot 2024.04 (Jul 10 2026 - 19:13:50 +1200)
+
+CPU:   Freescale i.MX23 rev1.3 at 454 MHz
+BOOT:  USB
+DRAM:  128 MiB
+Core:  22 devices, 15 uclasses, devicetree: separate
+NAND:  4096 MiB
+MMC:   MXS MMC: 0
+Loading Environment from MMC... MMC: no card present
+*** Warning - No block device, using default environment
+
+Loading Environment from nowhere... OK
+In:    serial
+Out:   serial
+Err:   serial
+Hit any key to stop autoboot:  0 
+=&gt;
+</code></pre>
+<p>The disadvantage of the patch mentioned above is that the RAM size must be correct hard-coded as <strong>PHYS_SDRAM_1_SIZE</strong>.</p>
+<p><code>boot</code> command would now boot Linux from SD card, which is not exactly what I wanted, since Ethernet would still be blocked by SD card. Also, at this point I can't use NAND to load Linux kernel to boot because MXS NAND driver for iMX23 is sort of unsupported. Bump.</p>
+<p>Another bump I got when I wanted to enable ENC28J60 driver in the U-Boot. I always remembered U-Boot having this driver, but it has been removed long time ago due to its incompatibility with device tree and poor quality. And I did not want bringing it back. Maybe later. Maybe. Later. Means never.   </p>
+<p>The solution to 'where-to-get-Linux-kernel-to-load' problem was to create a bootstream with preloaded <a href="https://docs.u-boot.org/en/v2024.04/usage/fit/howto.html">ITB file</a> to include Linux, initial ramdisk and device tree. I used following bootstream template, <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb tool</a> and <strong>post-build.sh</strong> script for replacing %WHATEVER% with full path of associated files:</p>
+<pre><code class="language-text">options {
+    driveTag = 0x00;
+    flags = 0x01;
+}
+
+sources {
+    u_boot_spl=&quot;%UBOOT_SPL%&quot;;
+    u_boot=&quot;%UBOOT_BIN%&quot;;
+    itb_image=&quot;%ITB_IMAGE%&quot;;
+}
+
+section (0) {
+    load u_boot_spl &gt; 0x1000;
+    call 0x1000;
+
+    // Load ITB image 0x46000000
+    load itb_image &gt; 0x46000000;
+
+    load u_boot  &gt; 0x40002000;
+    jump 0x40002000;
+}
+</code></pre>
+<blockquote>
+<p>[!NOTE]
+<a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb</a> package must have been activated as a host package. Don't know the reason, but despite being among packages it was not included in package/Config.host.in. </p>
+</blockquote>
+<p>Now Linux can boot nicely:</p>
+<details>
+<summary>Click to view USB boot output</summary>
+
+
+<pre><code class="language-console">HTLCLLJ
+
+U-Boot 2024.04 (Jul 10 2026 - 19:13:50 +1200)
+
+CPU:   Freescale i.MX23 rev1.3 at 454 MHz
+BOOT:  USB
+DRAM:  128 MiB
+Core:  22 devices, 15 uclasses, devicetree: separate
+NAND:  4096 MiB
+MMC:   MXS MMC: 0
+Loading Environment from MMC... MMC: no card present
+*** Warning - No block device, using default environment
+
+Loading Environment from nowhere... OK
+In:    serial
+Out:   serial
+Err:   serial
+Hit any key to stop autoboot:  0 
+MMC: no card present
+MMC: no card present
+Try booting from ITB at 0x46000000
+## Loading kernel from FIT Image at 46000000 ...
+   Using 'config-imx23-evk-enc28j60' configuration
+   Verifying Hash Integrity ... OK
+   Trying 'kernel' kernel subimage
+     Description:  Kernel
+     Type:         Kernel Image
+     Compression:  uncompressed
+     Data Start:   0x460000b4
+     Data Size:    6737048 Bytes = 6.4 MiB
+     Architecture: ARM
+     OS:           Linux
+     Load Address: 0x42000000
+     Entry Point:  0x42000000
+     Hash algo:    sha256
+     Hash value:   f237d652f1c62d43abbfd604d9030ae348a3f956b2a1caae445c1c5c5234374e
+   Verifying Hash Integrity ... sha256+ OK
+## Loading ramdisk from FIT Image at 46000000 ...
+   Using 'config-imx23-evk-enc28j60' configuration
+   Verifying Hash Integrity ... OK
+   Trying 'ramdisk' ramdisk subimage
+     Description:  Ramdisk
+     Type:         RAMDisk Image
+     Compression:  uncompressed
+     Data Start:   0x4666ce38
+     Data Size:    5830130 Bytes = 5.6 MiB
+     Architecture: ARM
+     OS:           Linux
+     Load Address: 0x43000000
+     Entry Point:  unavailable
+     Hash algo:    sha256
+     Hash value:   c1b62d1f366459a64f55fe07a823ccecd8ce3eab0d00d6a02b6a2e280788ed00
+   Verifying Hash Integrity ... sha256+ OK
+   Loading ramdisk from 0x4666ce38 to 0x43000000
+## Loading fdt from FIT Image at 46000000 ...
+   Using 'config-imx23-evk-enc28j60' configuration
+   Verifying Hash Integrity ... OK
+   Trying 'fdt-imx23-evk-enc28j60' fdt subimage
+     Description:  Device Tree: imx23-evk-enc28j60
+     Type:         Flat Device Tree
+     Compression:  uncompressed
+     Data Start:   0x46bfc530
+     Data Size:    13569 Bytes = 13.3 KiB
+     Architecture: Unknown Architecture
+     Load Address: 0x41000000
+     Hash algo:    sha256
+     Hash value:   b3b7c6179eeba6b6f0ca10d368ca6316f01837bbf28a86fb864c20b57ec31c43
+   Verifying Hash Integrity ... sha256+ OK
+   Loading fdt from 0x46bfc530 to 0x41000000
+   Booting using the fdt blob at 0x41000000
+Working FDT set to 41000000
+   Loading Kernel Image to 42000000
+   Loading Ramdisk to 475c3000, end 47b525f2 ... OK
+   Loading Device Tree to 475bc000, end 475c2500 ... OK
+Working FDT set to 475bc000
+
+Starting kernel ...
+
+[    0.000000] Booting Linux on physical CPU 0x0
+[    0.000000] Linux version 6.6.143 (xael@laptop) (arm-linux-gcc.br_real (Buildroot 2021.11-18033-g83947c7bb6) 14.3.0, GNU ld (GNU Binutils) 2.43.1) #1 Fri Jul 10 19:31:32 NZST 2026
+[    0.000000] CPU: ARM926EJ-S [41069265] revision 5 (ARMv5TEJ), cr=0005317f
+[    0.000000] CPU: VIVT data cache, VIVT instruction cache
+[    0.000000] OF: fdt: Machine model: Freescale i.MX23 Evaluation Kit
+[    0.000000] Memory policy: Data cache writeback
+[    0.000000] Zone ranges:
+[    0.000000]   Normal   [mem 0x0000000040000000-0x0000000047ffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x0000000047ffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x0000000047ffffff]
+[    0.000000] Kernel command line: console=ttyAMA0,115200 root=/dev/ram0 rw rootwait=30
+[    0.000000] Dentry cache hash table entries: 16384 (order: 4, 65536 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 8192 (order: 3, 32768 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 32512
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] Memory: 103396K/131072K available (9455K kernel code, 1228K rwdata, 3016K rodata, 256K init, 6534K bss, 27676K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=32, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+[    0.000000] Running RCU self tests
+[    0.000000] Running RCU synchronous self tests
+[    0.000000] NR_IRQS: 16, nr_irqs: 16, preallocated irqs: 16
+[    0.000000] clocksource: mxs_timer: mask: 0xffff max_cycles: 0xffff, max_idle_ns: 911346093 ns
+[    0.000000] Console: colour dummy device 80x30
+[    0.000000] Lock dependency validator: Copyright (c) 2006 Red Hat, Inc., Ingo Molnar
+[    0.000000] ... MAX_LOCKDEP_SUBCLASSES:  8
+[    0.000000] ... MAX_LOCK_DEPTH:          48
+[    0.000000] ... MAX_LOCKDEP_KEYS:        8192
+[    0.000000] ... CLASSHASH_SIZE:          4096
+[    0.000000] ... MAX_LOCKDEP_ENTRIES:     32768
+[    0.000000] ... MAX_LOCKDEP_CHAINS:      65536
+[    0.000000] ... CHAINHASH_SIZE:          32768
+[    0.000000]  memory used by lock dependency info: 4125 kB
+[    0.000000]  memory used for stack traces: 2112 kB
+[    0.000000]  per task-struct memory footprint: 1536 bytes
+[    0.000000] sched_clock: 32 bits at 100 Hz, resolution 10000000ns, wraps every 21474836475000000ns
+[    0.000000] Calibrating delay loop... 227.32 BogoMIPS (lpj=1136640)
+[    0.080000] CPU: Testing write buffer coherency: ok
+[    0.080000] pid_max: default: 32768 minimum: 301
+[    0.080000] Mount-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.080000] Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.110000] Setting up static identity map for 0x40008400 - 0x40008458
+[    0.130000] devtmpfs: initialized
+[    0.200000] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+[    0.200000] futex hash table entries: 256 (order: 2, 12288 bytes, linear)
+[    0.210000] pinctrl core: initialized pinctrl subsystem
+[    0.240000] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.240000] DMA: preallocated 256 KiB pool for atomic coherent allocations
+[    0.300000] /apb@80000000/apbh@80000000/pinctrl@80018000: Fixed dependency cycle(s) with /apb@80000000/apbh@80000000/pinctrl@80018000/hog@0
+[    0.360000] gpio gpiochip0: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.390000] gpio gpiochip1: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.430000] gpio gpiochip2: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.500000] /apb@80000000/apbh@80000000/lcdif@80030000: Fixed dependency cycle(s) with /panel
+[    0.500000] /panel: Fixed dependency cycle(s) with /apb@80000000/apbh@80000000/lcdif@80030000
+[    0.520000] Serial: AMBA PL011 UART driver
+[    0.540000] 80070000.serial: ttyAMA0 at MMIO 0x80070000 (irq = 116, base_baud = 0) is a PL011 rev2
+[    0.540000] printk: console [ttyAMA0] enabled
+[    0.890000] SCSI subsystem initialized
+[    0.900000] regulator-vddio-sd0 enforce active low on GPIO handle
+[    0.930000] usbcore: registered new interface driver usbfs
+[    0.960000] usbcore: registered new interface driver hub
+[    0.960000] usbcore: registered new device driver usb
+[    0.980000] pps_core: LinuxPPS API ver. 1 registered
+[    0.990000] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti &lt;giometti@linux.it&gt;
+[    1.000000] PTP clock support registered
+[    1.020000] Advanced Linux Sound Architecture Driver Initialized.
+[    1.080000] clocksource: Switched to clocksource mxs_timer
+[    1.580000] NET: Registered PF_INET protocol family
+[    1.590000] IP idents hash table entries: 2048 (order: 2, 16384 bytes, linear)
+[    1.640000] tcp_listen_portaddr_hash hash table entries: 128 (order: 1, 5120 bytes, linear)
+[    1.650000] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    1.660000] TCP established hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    1.670000] TCP bind hash table entries: 1024 (order: 5, 81920 bytes, linear)
+[    1.680000] TCP: Hash tables configured (established 1024 bind 1024)
+[    1.710000] UDP hash table entries: 256 (order: 3, 24576 bytes, linear)
+[    1.720000] UDP-Lite hash table entries: 256 (order: 3, 24576 bytes, linear)
+[    1.730000] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    1.740000] RPC: Registered named UNIX socket transport module.
+[    1.750000] RPC: Registered udp transport module.
+[    1.760000] RPC: Registered tcp transport module.
+[    1.760000] RPC: Registered tcp-with-tls transport module.
+[    1.770000] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    1.830000] Unpacking initramfs...
+[    5.000000] workingset: timestamp_bits=30 max_order=15 bucket_order=0
+[    5.020000] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    5.040000] NFS: Registering the id_resolver key type
+[    5.060000] Key type id_resolver registered
+[    5.060000] Key type id_legacy registered
+[    5.080000] ntfs3: Read-only LZX/Xpress compression included
+[    5.080000] jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+[    5.100000] NET: Registered PF_ALG protocol family
+[    5.100000] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 248)
+[    5.110000] io scheduler mq-deadline registered
+[    5.120000] io scheduler kyber registered
+[    5.140000] io scheduler bfq registered
+[    5.260000] mxs-dma 80004000.dma-controller: initialized
+[    5.320000] mxs-dma 80024000.dma-controller: initialized
+[    5.360000] 8006c000.serial: ttyAPP0 at MMIO 0x8006c000 (irq = 118, base_baud = 1500000) is a 8006c000.serial
+[    5.380000] mxs-auart 8006c000.serial: Found APPUART 3.0.0
+[    5.500000] [drm] Initialized mxsfb-drm 1.0.0 20160824 for 80030000.lcdif on minor 0
+[    5.760000] Console: switching to colour frame buffer device 100x30
+[    5.790000] mxsfb 80030000.lcdif: [drm] fb0: mxsfb-drmdrmfb frame buffer device
+[    5.880000] gpmi-nand 8000c000.nand-controller: clock setting: expected 22000000, got 21818182
+[    5.910000] nand: device found, Manufacturer ID: 0xec, Chip ID: 0xd7
+[    5.920000] nand: Samsung NAND 4GiB 3,3V 8-bit
+[    5.920000] nand: 4096 MiB, MLC, erase size: 512 KiB, page size: 4096, OOB size: 218
+[    5.950000] gpmi-nand 8000c000.nand-controller: clock setting: expected 22000000, got 21818182
+[    5.960000] gpmi-nand 8000c000.nand-controller: Scanning for an NCB fingerprint...
+[    5.990000] gpmi-nand 8000c000.nand-controller:  Found a fingerprint
+[    6.000000] Scanning device for bad blocks
+[    6.190000] Bad eraseblock 137 at 0x000004480000
+[    8.090000] Freeing initrd memory: 5696K
+[   10.860000] Bad eraseblock 5162 at 0x0000a1500000
+[   11.110000] Bad eraseblock 5475 at 0x0000ab180000
+[   11.190000] Bad eraseblock 5573 at 0x0000ae280000
+[   12.180000] Bad eraseblock 6872 at 0x0000d6c00000
+[   12.270000] Bad eraseblock 6976 at 0x0000da000000
+[   12.500000] Bad eraseblock 7278 at 0x0000e3700000
+[   12.720000] random: crng init done
+[   13.220000] 8 fixed-partitions partitions found on MTD device gpmi-nand
+[   13.220000] Creating 8 MTD partitions on &quot;gpmi-nand&quot;:
+[   13.230000] 0x000000000000-0x000004000000 : &quot;boot&quot;
+[   13.290000] 0x000004000000-0x000005000000 : &quot;env1&quot;
+[   13.330000] 0x000005000000-0x000006000000 : &quot;env2&quot;
+[   13.360000] 0x000006000000-0x000016000000 : &quot;rootfs1&quot;
+[   13.400000] 0x000016000000-0x000026000000 : &quot;rootfs2&quot;
+[   13.440000] 0x000026000000-0x000036000000 : &quot;data1&quot;
+[   13.480000] 0x000036000000-0x000046000000 : &quot;data2&quot;
+[   13.520000] 0x000046000000-0x000100000000 : &quot;spare&quot;
+[   13.620000] gpmi-nand 8000c000.nand-controller: driver registered.
+[   13.690000] tun: Universal TUN/TAP device driver, 1.6
+[   13.710000] enc28j60 spi0.0: Ethernet driver 1.02 loaded
+[   13.750000] SLIP: version 0.8.4-NET3.019-NEWTTY (dynamic channels, max=256).
+[   13.760000] CSLIP: code copyright 1989 Regents of the University of California.
+[   13.770000] usbcore: registered new interface driver asix
+[   13.780000] usbcore: registered new interface driver ax88179_178a
+[   13.780000] usbcore: registered new interface driver cdc_ether
+[   13.790000] usbcore: registered new interface driver smsc95xx
+[   13.800000] usbcore: registered new interface driver net1080
+[   13.810000] usbcore: registered new interface driver cdc_subset
+[   13.810000] usbcore: registered new interface driver zaurus
+[   13.820000] usbcore: registered new interface driver cdc_ncm
+[   13.830000] usbcore: registered new interface driver r8153_ecm
+[   13.840000] usbcore: registered new interface driver usb-storage
+[   13.890000] ------------[ cut here ]------------
+[   13.890000] WARNING: CPU: 0 PID: 1 at drivers/base/platform.c:450 __platform_get_irq_byname+0xb4/0xd0
+[   13.900000] 0 might be an invalid IRQ number
+[   13.910000] Modules linked in:
+[   13.910000] CPU: 0 PID: 1 Comm: swapper Not tainted 6.6.143 #1
+[   13.910000] Hardware name: Freescale MXS (Device Tree)
+[   13.910000]  unwind_backtrace from show_stack+0x10/0x14
+[   13.910000]  show_stack from dump_stack_lvl+0x38/0x4c
+[   13.910000]  dump_stack_lvl from __warn+0x78/0x138
+[   13.910000]  __warn from warn_slowpath_fmt+0x94/0xcc
+[   13.910000]  warn_slowpath_fmt from __platform_get_irq_byname+0xb4/0xd0
+[   13.910000]  __platform_get_irq_byname from platform_get_irq_byname+0x10/0x30
+[   13.910000]  platform_get_irq_byname from mxs_lradc_ts_probe+0x18c/0x378
+[   13.910000]  mxs_lradc_ts_probe from platform_probe+0x58/0xb4
+[   13.910000]  platform_probe from really_probe+0xc4/0x2dc
+[   13.910000]  really_probe from __driver_probe_device+0x90/0x1c4
+[   13.910000]  __driver_probe_device from driver_probe_device+0x30/0x11c
+[   13.910000]  driver_probe_device from __driver_attach+0x94/0x18c
+[   13.910000]  __driver_attach from bus_for_each_dev+0x7c/0xd0
+[   13.910000]  bus_for_each_dev from bus_add_driver+0xc4/0x1ec
+[   13.910000]  bus_add_driver from driver_register+0x80/0x118
+[   13.910000]  driver_register from do_one_initcall+0x60/0x238
+[   13.910000]  do_one_initcall from kernel_init_freeable+0x194/0x220
+[   13.910000]  kernel_init_freeable from kernel_init+0x10/0x108
+[   13.910000]  kernel_init from ret_from_fork+0x14/0x38
+[   13.910000] Exception stack(0xc8819fb0 to 0xc8819ff8)
+[   13.910000] 9fa0:                                     00000000 00000000 00000000 00000000
+[   13.910000] 9fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[   13.910000] 9fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+[   14.070000] irq event stamp: 342137
+[   14.070000] hardirqs last  enabled at (342145): [&lt;c00714c0&gt;] console_unlock+0x138/0x168
+[   14.080000] hardirqs last disabled at (342154): [&lt;c00714ac&gt;] console_unlock+0x124/0x168
+[   14.090000] softirqs last  enabled at (342136): [&lt;c001ff54&gt;] handle_softirqs+0x31c/0x410
+[   14.090000] softirqs last disabled at (342125): [&lt;c00201e0&gt;] __irq_exit_rcu+0x12c/0x164
+[   14.100000] ---[ end trace 0000000000000000 ]---
+[   14.120000] input: mxs-lradc-ts as /devices/soc0/80000000.apb/80040000.apbx/80050000.lradc/mxs-lradc-ts/input/input0
+[   14.150000] stmp3xxx-rtc 8005c000.rtc: registered as rtc0
+[   14.150000] stmp3xxx-rtc 8005c000.rtc: setting system clock to 1970-01-01T00:08:24 UTC (504)
+[   14.170000] i2c_dev: i2c /dev entries driver
+[   14.190000] stmp3xxx_rtc_wdt stmp3xxx_rtc_wdt: initialized watchdog with heartbeat 19s
+[   14.210000] mxs-dcp 80028000.crypto: initialized
+[   14.220000] mxs-dcp 80028000.crypto: Not in Trusted or Secure State, Non-volatile Test Key in effect
+[   14.250000] usbcore: registered new interface driver usbhid
+[   14.250000] usbhid: USB HID core driver
+[   14.320000] mxs-builtin-codec 80048000.mxs-builtin-codec: Registered mxs-builtin-codec
+[   14.340000] mxs-builtin-cpu-dai 80048000.mxs-builtin-cpu-dai: Registered mxs-adc-pcm-driver
+[   14.350000] mxs-builtin-cpu-dai 80048000.mxs-builtin-cpu-dai: Registered mxs-builtin-codec-dai
+[   14.370000] NET: Registered PF_PACKET protocol family
+[   14.370000] Key type dns_resolver registered
+[   14.490000] registered taskstats version 1
+[   14.800000] at24 0-0050: supply vcc not found, using dummy regulator
+[   14.830000] at24 0-0050: 16384 byte 24lc128 EEPROM, writable, 64 bytes/write
+[   14.850000] input: adc-keys as /devices/soc0/adc-keys/input/input1
+[   14.930000] clk: Disabling unused clocks
+[   14.950000] ALSA device list:
+[   14.950000]   #0: mxs-builtin-audio
+[   14.960000] uart-pl011 80070000.serial: no DMA platform data
+[   14.980000] Freeing unused kernel image (initmem) memory: 256K
+[   14.980000] Kernel memory protection not selected by kernel config.
+[   14.990000] Run /init as init process
+Saving 256 bits of creditable seed for next boot
+Starting syslogd: OK
+Starting klogd: OK
+Running sysctl: OK
+Starting mdev... OK
+Starting network: OK
+Starting crond: OK
+
+Welcome to Buildroot
+buildroot login: 
+</code></pre>
+
+
+</details>
+
+<p>SPI Ethernet is still blocked by SD card what needs to be fixed in the device tree. The line <code>enc28j60 spi0.0: Ethernet driver 1.02 loaded</code> in the log above is a bit misleading as it only tells about the driver being loaded, not the hardware being usable.</p>
+<h1 id="u-boot">U-Boot</h1>
+<h2 id="nand-driver">NAND driver</h2>
+<p>An observant reader might have noticed <code>NAND:  4096 MiB</code> in the logs above. Well, those logs had been captured after Linux MXS GPMI driver was ported to U-Boot. Between the previous sentence and the following log with NAND bad blocks were gone several halfdays. Very rewarding log, though: </p>
+<pre><code class="language-console">=&gt; nand info
+
+Device 0: nand0, sector size 512 KiB
+  Page size         4096 b
+  OOB size           218 b
+  Erase size      524288 b
+  ecc strength        16 bits
+  ecc step size      512 b
+  subpagesize       4096 b
+  options       0x00004208
+  bbt options   0x00010000
+
+=&gt; nand erase.chip -y 
+
+NAND erase.chip: device 0 whole chip
+Skipping bad block at  0x04480000                                          
+Skipping bad block at  0xa1500000                                          
+Skipping bad block at  0xab180000                                          
+Skipping bad block at  0xae280000                                          
+Skipping bad block at  0xd6c00000                                          
+Skipping bad block at  0xda000000                                          
+Skipping bad block at  0xe3700000                                          
+Erasing at 0xfff80000 -- 100% complete.
+OK
+=&gt; 
+</code></pre>
+<p>U-Boot patches related to NAND subsystem can be found under <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04</a>. It is a bit long series of patches which, apart from patching NAND support into, resolves a few compile issues and also provides a workaround for <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363760">Erratum 2847</a> thankfully taken from Linux kernel sources.</p>
+<h2 id="otp-fuses">OTP fuses</h2>
+<p>Apparently there is <a href="https://github.com/nxp-imx/mfgtools">MfgTool</a> for burning OTP fuses. However, I never tried using MfgTool since I discovered that U-Boot can do this for me. U-Boot requires a little patch and can write and read fuses just fine: <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch</a>:</p>
+<pre><code class="language-console">=&gt; fuse read 0 0
+Reading bank 0:
+
+Word 0x00000000: 00049f01
+</code></pre>
+<p>No idea why bank 0 word 0, which is for customer purpose, is preprogrammed. Maybe Freescale as the board manufacturer was its own 'customer'.</p>
+<h1 id="linux">Linux</h1>
+<p>Since we got Linux console, it's time to check what's with hardware drivers.</p>
+<h2 id="otp-fuses_1">OTP fuses</h2>
+<p>OTP fuses can be accessed as Non-Volatile Memory (NVMEM):</p>
+<pre><code class="language-console">#hexdump /sys/devices/soc0/80000000.apb/80000000.apbh/8002c000.efuse/mxs-ocotp0/nvmem 
+0000000 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000020 9f01 0004 0000 0000 0000 0000 0000 0000
+0000030 1893 0000 0000 0000 0000 0000 0000 0000
+0000040 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000100 0000 0009 0000 0000 0000 0000 0000 0000
+0000110 0000 2000 0000 0000 0000 0000 0000 0000
+0000120 0140 4088 0000 0000 0000 0000 0000 0000
+0000130 0001 0000 0000 0000 0000 0000 0000 0000
+0000140 0a3b 0000 0000 0000 0000 0000 0000 0000
+0000150 da7e 0002 0000 0000 0000 0000 0000 0000
+0000160 ca3b 911a 0000 0000 0000 0000 0000 0000
+0000170 0000 0000 0000 0000 0000 0000 0000 0000
+*
+00001a0 0008 0020 0000 0000 0000 0000 0000 0000
+00001b0 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000210 0101 0000 0000 0000 0000 0000 0000 0000
+0000220
+</code></pre>
+<h2 id="usb">USB</h2>
+<p>EVK hardware must rewired a bit to test USB host. Since  USB driver has been successfully tested with Olinuxino Mini I skipped it.</p>
+<h2 id="nand-driver_1">NAND driver</h2>
+<p>In the device tree I have created multiple MTD partitions: boot, u-boot-env, rootfs and data.</p>
+<p>boostream will be programmed in the 'boot' partition. Other partitions could be used as their names suggest.</p>
+<h3 id="samsung-nand-erase-block-size-detection-bugs">Samsung NAND erase block size detection bugs</h3>
+<p>I ran <code>mtdinfo -a</code> and got 512MB erase size for Samsung K9LBG08U0D NAND flash. Even if the technological advancement in microelectronics is happenning rapidly I would not expect 512MB. (Just looked up :roll_eyes:: 96MB erase block size for QLC NAND). Searching on the internet lit up a similar issue <a href="https://archlinuxarm.org/forum/viewtopic.php?f=33&amp;t=14511">https://archlinuxarm.org/forum/viewtopic.php?f=33&amp;t=14511</a>.</p>
+<p>Every other NAND flash characteristic was printed as the data sheet suggested with most important among them: page size = 4k and oob size = 218 bytes.</p>
+<p>Where the bug could be hiding? To answer this question we need to know, roughly, how Linux NAND subsystem is organized:
+| Linux NAND subsystem | Source file(s) |
+| --- | --- | 
+| Filesystem driver | SquashFS, UBI/UBIFS |
+| MTD driver | <em>drivers/mtd/mtd*.c</em> |
+| NAND base layer | <em>drivers/mtd/nand/raw/nand_base.c</em> and its consorts |
+| NAND SoC driver | <em>drivers/mtd/nand/raw/gpmi-nand/gpmi_nand.c</em> |
+| NAND chip driver | <em>drivers/mtd/nand/raw/nand_samsung.c</em> |</p>
+<p>NAND chip driver is responsible for the NAND chip identification meaning the page size, oob size and erase block size will be determined by that driver. After spending a few hours on reading <em>nand_samsung.c</em> I finally spotted something interesting:</p>
+<pre><code class="language-c">        /* Get blocksize */
+        extid &gt;&gt;= 2;
+        memorg-&gt;pages_per_eraseblock = (128 * 1024) &lt;&lt;
+                           (((extid &gt;&gt; 1) &amp; 0x04) |
+                        (extid &amp; 0x03)) /
+                           memorg-&gt;pagesize;
+        mtd-&gt;erasesize = (128 * 1024) &lt;&lt;
+                 (((extid &gt;&gt; 1) &amp; 0x04) | (extid &amp; 0x03));
+</code></pre>
+<p>Such a mean thing are those missing round brackets! Very typical bug, though; I'm wondering how long it survived there. Anyway, after the numerator was put into a bracket pair, see <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0010-fixed-erase-size-for-big-samsung-nand.patch">patch</a>, the erase size shows up correct:</p>
+<pre><code class="language-console"># mtdinfo /dev/mtd0
+mtd0
+Name:                           boot
+Type:                           mlc-nand
+Eraseblock size:                524288 bytes, 512.0 KiB
+Amount of eraseblocks:          128 (67108864 bytes, 64.0 MiB)
+Minimum input/output unit size: 4096 bytes
+Sub-page size:                  4096 bytes
+OOB size:                       218 bytes
+Character device major/minor:   90:0
+Bad blocks are allowed:         true
+Device is writable:             true
+</code></pre>
+<blockquote>
+<p>[!NOTE]
+If you fix a bug in Linux kernel, think about that the bugfix could be applied to U-Boot since they share a lot of common drivers' code. Spoiler: in this case U-Boot was unaffected; the erase size was calculated slightly different.</p>
+</blockquote>
+<h3 id="ubifs-and-mlc-nand">UBIFS and MLC NAND</h3>
+<p>Having the bug with wrong erase block size fixed, I tried to create UBIFS partition and immediately failed with <code>ubi: refuse attaching mtd1 - MLC NAND is not supported</code>. Well, MLC NAND is <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b5094b7f135be">unsupported</a> by UBIFS.</p>
+<p>Searching across the internet revealed great news from 2020 [SLC NAND can be emulated in software]<a href="https://www.phoronix.com/news/Linux-5.8-NAND-MLC-SLC-Emulate">https://www.phoronix.com/news/Linux-5.8-NAND-MLC-SLC-Emulate</a>! Interestingly, skimming through the U-Boot source code I have not found any sign of SLC emulation. It might have looked in a wrong place, though.</p>
+<p>As always, nothing goes without patches:
+1. We need to patch Samsung NAND chip driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch</a>
+2. We need to patch NAND SoC driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch</a>
+3. We need to tell MTD Linux driver about slc-mode being used with a MTD partition: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch</a></p>
+<p>I'm wondering why 1. and 2. are required. To me it looks like some sort of a boundary violation between different software layers. Nevertheless, the rootfs1 on /dev/mtd3 parititon, which is flagged in the device tree with 'slc-mode', can be attached: </p>
+<pre><code class="language-console"># flash_erase /dev/mtd3 0 0
+Erasing 131072 Kibyte @ 0 -- 100 % complete 
+
+# ubiattach -p /dev/mtd3 -d 3
+[   89.510000] ubi3: attaching mtd3
+[   89.940000] ubi3: scanning is finished
+[   89.940000] ubi3: empty MTD device detected
+[   90.020000] ubi3: attached mtd3 (name &quot;rootfs1&quot;, size 128 MiB)
+[   90.020000] ubi3: PEB size: 262144 bytes (256 KiB), LEB size: 253952 bytes
+[   90.030000] ubi3: min./max. I/O unit sizes: 4096/4096, sub-page size 4096
+[   90.040000] ubi3: VID header offset: 4096 (aligned 4096), data offset: 8192
+[   90.040000] ubi3: good PEBs: 512, bad PEBs: 0, corrupted PEBs: 0
+[   90.050000] ubi3: user volume: 0, internal volumes: 1, max. volumes count: 128
+[   90.060000] ubi3: max/mean erase counter: 0/0, WL threshold: 4096, image sequence number: 3868442551
+[   90.070000] ubi3: available PEBs: 188, total reserved PEBs: 324, PEBs reserved for bad PEB handling: 320
+[   90.080000] ubi3: background thread &quot;ubi_bgt3d&quot; started, PID 102
+UBI device number 3, total 512 LEBs (130023424 bytes, 124.0 MiB), available 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (248.0 KiB)
+
+# ubimkvol /dev/ubi3 -N rootfs1 -m
+Set volume size to 47742976
+Volume ID 0, size 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (248.0 KiB), dynamic, name &quot;rootfs1&quot;, alignment 1
+
+# mount -t ubifs ubi3:rootfs1 /mnt
+[  318.930000] UBIFS (ubi3:0): default file-system created
+[  318.930000] UBIFS (ubi3:0): Mounting in unauthenticated mode
+[  318.950000] UBIFS (ubi3:0): background thread &quot;ubifs_bgt3_0&quot; started, PID 105
+[  319.140000] UBIFS (ubi3:0): UBIFS: mounted UBI device 3, volume 0, name &quot;rootfs1&quot;
+[  319.140000] UBIFS (ubi3:0): LEB size: 253952 bytes (248 KiB), min./max. I/O unit sizes: 4096 bytes/4096 bytes
+[  319.150000] UBIFS (ubi3:0): FS size: 45203456 bytes (43 MiB, 178 LEBs), max 188 LEBs, journal size 2285568 bytes (2 MiB, 9 LEBs)
+[  319.170000] UBIFS (ubi3:0): reserved for root: 2135070 bytes (2085 KiB)
+[  319.170000] UBIFS (ubi3:0): media format: w5/r0 (latest is w5/r0), UUID CFC4F740-B048-4097-B48C-C5D3D2FF1B96, small LPT model
+</code></pre>
+<p>Writing and reading in or from <code>/mnt</code> were working fine just until the next reboot. When I was trying to mount this very parition again, I was facing too many bit-flip errors: "ubi0: fixable bit-flip detected at PEB XYZ".</p>
+<h3 id="gpmi-driver-bugs">GPMI driver bugs</h3>
+<p>Even though there were many bit-flip errors, UBIFS could heal the partition by reading and rewriting its data. However, NAND flash could not be worn out. There must have been something wrong. What do you do, if you don't know further? Right, you 'consult' the internet. The closest I could find was this post here <a href="https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot">https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot</a>. Not so much helpful, though, since no solution or at least a tip for how to narrow the issue down.</p>
+<p>What should be done when searching for a bug in an unknown code base? Correct answer is: activate all log messages and increase log level from debug to something more visible! That's what I did in <em>gpmi-nand.c</em>, and at some point <code>No fingerprint found</code>  caught my eye. When reading <em>gpmi-nand.c</em> I stumbled upon iMX23 specific feature called NAND transcribing which is required for the BCH hardware being used for error correction. NAND transcribing means that bad block marks usually stored in the first OOB byte will be transcribed (copied) into the first page bytes (at position 0). Once this is done, "STMP" fingerprint will be written at byte position 12 in the first NAND flash page to prevent transcribing and data corruption recognised as bit-flips at the next boot up. BTW, "STMP" fingerprint is included in the header of a bootstream which will be written by <a href="#kobs-ng">kobs-ng</a>:</p>
+<p><img width="453" height="472" alt="Screenshot from 2026-07-18 17-28-51" src="https://github.com/user-attachments/assets/3671f110-aefc-4bae-9c75-fa9796cc5acb" /></p>
+<p>First 4 bytes of the NCB block above are reserved for "STMP" fingerprint.</p>
+<p>The rest of the story is unpretentious. The fingerprint has been written at byte position 22 with an offset of the length of metadata. After crafting and applying this patch <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0012-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0012-gpmi-nand.patch</a> to shift the fingerprint at its correct position, bit flips were gone. Another ten years old bug mistery solved! </p>
+<h2 id="spi-ethernet-enc28j60">SPI Ethernet ENC28J60</h2>
+<p>Yeah, good ol' ENC28J60. In how many not only DIY projects it has been beaten into... </p>
+<p>To support SPI Ethernet I used <em>imx23-evk.dts</em> and replaced eMMC with SPI: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0003-spi-ethernet-enc28j60.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0003-spi-ethernet-enc28j60.patch</a>.</p>
+<p>ENC28J60 did not work as supposed at first and I started worrying about SPI "being working, but keep in mind that it is half-duplex and so you need to modify other drivers to work with it" as it was mentioned <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">here</a>. But the reason was absolutely prosaic - the SPI bus frequency was too high. ENC28J60 started responding after reducing the frequency to 6MHz, which is a bit strange since I remember ENC28J60 working fine at up to 12MHz. BTW, SPI half-duplex is already supported, find <code>master-&gt;flags = SPI_CONTROLLER_HALF_DUPLEX;</code> in <em>spi-mxs.c</em>.</p>
+<p>Any ethernet cable can be used to connect iMX23 EVK with the host PC. Host PC should support Auto-MDI and I doubt that it does not. Network can be configured using following commands.</p>
+<p>For host pc: </p>
+<pre><code class="language-shell">sudo ethtool -s enp0s31f6 speed 10 duplex full autoneg off
+sudo ifconfig enp0s31f6 192.168.200.1 netmask 255.255.255.0 up
+</code></pre>
+<p>For iMX233 EVK:</p>
+<pre><code class="language-console">ethtool -s eth0 speed 10 duplex full autoneg off
+ifconfig eth0 192.168.200.2 netmask 255.255.255.0 up
+inetd
+[   63.300000] enc28j60 spi0.0 eth0: link down
+[   63.310000] enc28j60 spi0.0 eth0: normal mode
+[   63.310000] enc28j60 spi0.0 eth0: multicast mode
+[   63.330000] enc28j60 spi0.0 eth0: multicast mode
+[   65.590000] enc28j60 spi0.0 eth0: link up - Full duplex
+[   65.760000] enc28j60 spi0.0 eth0: link down
+[   68.000000] enc28j60 spi0.0 eth0: link up - Full duplex
+</code></pre>
+<p>Ethernet performance with approx. 200kB/sec is not great, but by a magnitude better than any <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">serial port network</a>.</p>
+<h2 id="i2c">I2C</h2>
+<p>There is not too much to add to. 24LC128 EEPROM sits on I2c bus at address 50. Its driver is implemented as <a href="https://docs.kernel.org/driver-api/nvmem.html">Non Volatile Memory</a> which can be accessed as shown below:  </p>
+<pre><code class="language-console"># dd if=/sys/bus/i2c/devices/0-0050/eeprom bs=1 count=512 | xxd | head -n3
+512+0 records in
+512+0 records out
+00000000: 4f9e 6683 3110 476e c866 06a0 2afe dd0e  O.f.1.Gn.f..*...
+00000010: 554d 9a46 5354 4d50 0100 0000 1900 0000  UM.FSTMP........
+00000020: 0d00 0000 0000 0000 0300 0700 0600 0100  ................
+</code></pre>
+<p>Also, MMA7455L accelerometer and LTC2487 analog-digital-converter must be hiding as I2C devices populated somewhere on the board. But, all what I wanted to see was I2C bus working, so that I'll leave it as an exercise to the reader :stuck_out_tongue_winking_eye:. </p>
+<h2 id="lradc">LRADC</h2>
+<p>LRADC is a 6-chanel 12-bit Low-Resolution Analog-to-Digital Converter. On the EVK board it is being used to connect multiple push-buttons organized as button resistor ladder to a single analog input pin on a microcontroller. Unfortunately, it did not work out of the box even if the driver <em>mxs-lradc-adc.c</em> is fairly simple. When probing IRQs it comes down to using <code>MX23_LRADC_TS_IRQ = 0</code> from <em>mxs-lradc.c</em> as a virtual IRQ, which is not allowed by the Linux kernel due a bug. This bug has been announced as <code>0 might be an invalid IRQ number</code> below:</p>
+<pre><code class="language-console">[   13.940000] ------------[ cut here ]------------
+[   13.940000] WARNING: CPU: 0 PID: 1 at drivers/base/platform.c:450 __platform_get_irq_byname+0xb4/0xd0
+[   13.950000] 0 might be an invalid IRQ number
+...
+[   14.140000] softirqs last disabled at (339663): [&lt;c00201e0&gt;] __irq_exit_rcu+0x12c/0x164
+[   14.150000] ---[ end trace 0000000000000000 ]---
+[   14.170000] input: mxs-lradc-ts as /devices/soc0/80000000.apb/80040000.apbx/80050000.lradc/mxs-lradc-ts/input/input0
+</code></pre>
+<p>Since the virtual IRQ will be remapped to a real one <a href="https://elixir.bootlin.com/linux/v6.6.143/source/drivers/iio/adc/mxs-lradc-adc.c#L746">here</a></p>
+<pre><code class="language-c">    for (i = 0; i &lt; 3; i++) {
+        irq = platform_get_irq_byname(pdev, mxs_lradc_ts_irq_names[i]);
+        if (irq &lt; 0)
+            return irq;
+
+        virq = irq_of_parse_and_map(node, irq);
+</code></pre>
+<p>showing the warning above would have been enough. Instead, Linux kernel forbids using any IRQ number 0. This is fixed by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0016-platform-allow-virtual-irqs.patch">patch</a> leaving the user with the warning only.</p>
+<h3 id="buttons">Buttons</h3>
+<p>To enable buttons this patch with precalculated voltage (see values marked blue in the calculation below) specific for every button pressed is required: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0001-adc-keys.patch">ADC keys patch</a>. Below is the corresponding part of the <a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">schematics</a>: <img width="1727" height="355" alt="Screenshot from 2026-07-19 11-08-39" src="https://github.com/user-attachments/assets/a91956a1-8243-4e8d-b5b3-98a5951b2d37" /></p>
+<p>And the math I have done: <img width="1245" height="402" alt="Screenshot from 2026-07-19 11-06-14" src="https://github.com/user-attachments/assets/3eab29df-6e19-4004-83d4-2f69663e6fbd" /></p>
+<p>While it was straight forward to derive specific voltage from the resistor ladder values given in the schematics, it was not easy to work out why the buttons still did not work as expected. <code>evtest</code> was showing some strange behaiviour: pressed wrong button or two buttons pressed simultaneously. I found the explanation in the reference manual:</p>
+<p><img width="831" height="92" alt="Screenshot from 2026-07-18 23-07-11" src="https://github.com/user-attachments/assets/09a5d8c5-5f7b-421b-bd06-f71a60c7d972" /></p>
+<p>Since the ADC reference voltage is 3.3V I needed to switch the voltage scale from 1.85V to VDDIO, see <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/rootfs-overlay/etc/init.d/S90buttons">here</a>. Having done that, all button started working fine:</p>
+<pre><code class="language-console"># evtest
+No device specified, trying to scan all of /dev/input/event*
+Available devices:
+/dev/input/event0:  mxs-lradc-ts
+/dev/input/event1:  adc-keys
+Select the device event number [0-1]: 1
+Input driver version is 1.0.1
+Input device ID: bus 0x19 vendor 0x1 product 0x1 version 0x100
+Input device name: &quot;adc-keys&quot;
+Supported events:
+  Event type 0 (EV_SYN)
+  Event type 1 (EV_KEY)
+    Event code 2 (KEY_1)
+    Event code 3 (KEY_2)
+    Event code 4 (KEY_3)
+    Event code 28 (KEY_ENTER)
+    Event code 103 (KEY_UP)
+    Event code 105 (KEY_LEFT)
+    Event code 106 (KEY_RIGHT)
+    Event code 108 (KEY_DOWN)
+Properties:
+Testing ... (interrupt to exit)
+Event: time 16799.207656, type 1 (EV_KEY), code 108 (KEY_DOWN), value 1
+Event: time 16799.207656, -------------- SYN_REPORT ------------
+Event: time 16799.316531, type 1 (EV_KEY), code 108 (KEY_DOWN), value 0
+Event: time 16799.316531, -------------- SYN_REPORT ------------
+Event: time 16799.536468, type 1 (EV_KEY), code 105 (KEY_LEFT), value 1
+Event: time 16799.536468, -------------- SYN_REPORT ------------
+Event: time 16799.646437, type 1 (EV_KEY), code 105 (KEY_LEFT), value 0
+Event: time 16799.646437, -------------- SYN_REPORT ------------
+Event: time 16799.976531, type 1 (EV_KEY), code 106 (KEY_RIGHT), value 1
+Event: time 16799.976531, -------------- SYN_REPORT ------------
+Event: time 16800.086437, type 1 (EV_KEY), code 106 (KEY_RIGHT), value 0
+Event: time 16800.086437, -------------- SYN_REPORT ------------
+Event: time 16800.416531, type 1 (EV_KEY), code 28 (KEY_ENTER), value 1
+Event: time 16800.416531, -------------- SYN_REPORT ------------
+Event: time 16800.526437, type 1 (EV_KEY), code 28 (KEY_ENTER), value 0
+Event: time 16800.526437, -------------- SYN_REPORT ------------
+</code></pre>
+<p><code>cat /sys/bus/iio/devices/iio:device0/in_voltage0_raw</code> can be used to verify what ADC is actually seeing.</p>
+<h3 id="on-die-temperature-sensor">On-die temperature sensor</h3>
+<p>On-die temperature sensor will work after enabling IIO (industrial IO). See Linux kernel additional confifuration below:</p>
+<pre><code>CONFIG_IIO=y
+CONFIG_MXS_LRADC_ADC=y
+CONFIG_HWMON=y
+CONFIG_SENSORS_IIO_HWMON=y
+</code></pre>
+<p>Then in the Linux console:</p>
+<pre><code class="language-console"># raw=`cat /sys/bus/iio/devices/iio:device0/in_temp8_raw`
+# offset=`cat /sys/bus/iio/devices/iio:device0/in_temp8_offset`
+# scale=`cat /sys/bus/iio/devices/iio:device0/in_temp8_scale`
+awk -v raw=$raw -v offset=$offset -v scale=$scale 'BEGIN { printf &quot;Temperature is %.02f degC\n&quot;, (raw + (offset))*scale }'
+Temperature is 28.93 degC
+</code></pre>
+<h2 id="dcp-crypto">DCP crypto</h2>
+<p>Since I wanted EVK booting from NAND I needed to make DCP crypto hardware usable with kobs-ng tool. Luckily, I could have found all required patches: 
+1. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch</a>
+2. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a> credited to <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a>. I have 'married' the first patch with usbarmory's one and slightly adapted to Linux kernel 6.6.y.</p>
+<h2 id="sound-driver">Sound driver</h2>
+<p>Sound driver for an old Linux kernels (&lt;4.3) can be found here <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> and here <a href="https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5">https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5</a>. Due to a massive rework of the ALSA framework in the Linux kernel at the time of 4.4, these patches can not be reapplied as is.</p>
+<p>I could snap up enough information about ALSA system from <a href="https://bootlin.com/doc/training/audio/audio-slides.pdf">Audio with embedded Linux training</a> and rework <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> patches to use them with Linux kernel 6.6.y. Among the biggest changes was the machine driver, which had to make way for the <a href="https://www.kernel.org/doc/Documentation/devicetree/bindings/sound/simple-card.txt">simple audio card</a>. Also many obsolete structures and function calls must have been replaced with newer ones, but the rest of the driver remained almost unchanged.   </p>
+<p>When applying new patches, all *mxs-audio*.patch and also 0001-rtc-nvmem.patch from <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143</a> are required. The audio driver sets a few bits in RTC (yes!) registers to achieve better sound quality. I moved this to the RTC driver (see function <code>stmp3xxx_nvmem_write()</code>) since I wanted RTC and sound driver being usable at simultaneously. (I have not tried to find a better solution for this, sorry.)</p>
+<pre><code class="language-console"># uname -a
+Linux buildroot 6.6.143 #1 Fri Jul 10 19:31:32 NZST 2026 armv5tejl GNU/Linux
+
+# aplay -L
+null
+    Discard all samples (playback) or generate zero samples (capture)
+default:CARD=mxsbuiltinaudio
+    mxs-builtin-audio, mxs-builtin-cpu-dai-mxs-builtin-codec-dai mxs-builtin-codec-dai
+    Default Audio Device
+sysdefault:CARD=mxsbuiltinaudio
+    mxs-builtin-audio, mxs-builtin-cpu-dai-mxs-builtin-codec-dai mxs-builtin-codec-dai
+    Default Audio Device
+
+# amixer
+Simple mixer control 'Mic PGA',0
+  Capabilities: cvolume cvolume-joined
+  Capture channels: Mono
+  Limits: Capture 0 - 3
+  Mono: Capture 1 [33%]
+Simple mixer control '3D effect',0
+  Capabilities: enum
+  Items: 'Off' 'Low' 'Medium' 'High'
+  Item0: 'Off'
+Simple mixer control 'ADC',0
+  Capabilities: cvolume
+  Capture channels: Front Left - Front Right
+  Limits: Capture 0 - 255
+  Front Left: Capture 254 [100%]
+  Front Right: Capture 254 [100%]
+Simple mixer control 'ADC PGA',0
+  Capabilities: cvolume cswitch cswitch-joined
+  Capture channels: Front Left - Front Right
+  Limits: Capture 0 - 15
+  Front Left: Capture 2 [13%] [on]
+  Front Right: Capture 2 [13%] [on]
+Simple mixer control 'DAC',0
+  Capabilities: pvolume pswitch
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 15
+  Mono:
+  Front Left: Playback 15 [100%] [off]
+  Front Right: Playback 15 [100%] [off]
+Simple mixer control 'HP',0
+  Capabilities: pvolume
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 127
+  Mono:
+  Front Left: Playback 115 [91%]
+  Front Right: Playback 115 [91%]
+Simple mixer control 'HP Mux',0
+  Capabilities: enum
+  Items: 'DAC Out' 'Line In 1'
+  Item0: 'DAC Out'
+Simple mixer control 'Left ADC Mux',0
+  Capabilities: enum
+  Items: 'Mic' 'Line In 1' 'Head Phone' 'Line In 2'
+  Item0: 'Mic'
+Simple mixer control 'Right ADC Mux',0
+  Capabilities: enum
+  Items: 'Mic' 'Line In 1' 'Head Phone' 'Line In 2'
+  Item0: 'Mic'
+</code></pre>
+<blockquote>
+<p>[!WARNING]
+Even though audio playback and voice recording can be confirmed working, one issues still remains. Audio playback gets sometimes stuck and the board must be reset. I assume a well-known <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363485">Erratum 2349</a>. However, the solution to that problem provided in the errata sheet and implemented in the sound driver does not work out.</p>
+</blockquote>
+<h2 id="tv-out">TV-out</h2>
+<p>TV-out does not work and does not seem to be of highest priority. However, it should not be too complicated to port unofficial <a href="https://github.com/xobs/linux-2.6.28.mx233-falconwing/blob/master/arch/arm/mach-stmp3xxx/tvenc.c">tv-enc driver</a> to a recent kernel. Hereby these two drivers might be useful as examples:
+1. <a href="https://github.com/torvalds/linux/blob/master/drivers/gpu/drm/imx/ipuv3/imx-tve.c">imx-tve.c</a>
+2. <a href="https://github.com/torvalds/linux/blob/master/drivers/video/fbdev/omap2/omapfb/displays/connector-analog-tv.c">connector-analog-tv.c</a></p>
+<h1 id="booting-via-nand">Booting via NAND</h1>
+<p>There are two thoughts I would eagerly like to share about using NAND in embedded devices:
+1. Using <em>raw</em> NAND must definitely be banned from embedded world.
+2. Using <em>raw</em> NAND might be only allowed to be used with very low-cost consumer devices which lifetime is often limited by a couple of years.</p>
+<p>When using NAND in their devices, developers will be required to maintain <em>ALL</em> related tools specific for the SoC of their choice for years, even after the SoC platform became officially obsolete! Industrial grade devices are often developed for a service period of ten years, which will be prolonged by another ten almost <em>always</em>.</p>
+<p>NAND tools must be SoC-specific because each SoC integrates its unique NAND Flash Controller (NFC), e.g. GPMI NAND controller for the iMX series. These controllers determine how data is physically accessed and protected with error correction codes, making generic tools incompatible across different hardware platforms.</p>
+<p>What else adds to complexity?
+* proprietary hardware interfaces: every SoC manufacturer designs their NFC differently. Tools must utilize hardware-specific commands to communicate with the chip.
+* vendor-specific ECC: raw NAND flash requires error correction code (ECC) to prevent data corruption. Because different SoCs use different ECC algorithms, the tools must encode/decode data exactly as the target SoC expects it.
+* bad block management (BBM): SoCs employ proprietary software or hardware schemes to map around physically defective memory blocks. Generic tools cannot inherently parse these custom bad block tables.
+* BootROM &amp; security protocols: SoCs use secure boot chains with custom encryption keys, headers, and authentication methods. Tools must package firmware images precisely according to these SoC-enforced constraints =&gt; iMX23 bootstream.
+* flashing &amp; recovery mechanisms: recovery modes for unbootable boards rely on SoC-specific ROM codes. Tools use these vendor-developed USB/UART protocols to bypass broken operating systems and push fresh bootloaders.</p>
+<p>That's probably why all conscious developers would rather use eMMC with standard tools! (In the meantime, I'm gonna get a t-shirt with "I love eMMC!" quote on it.)</p>
+<h2 id="kobs-ng">kobs-ng</h2>
+<p>When configured to boot from NAND (DIP switch 0100), iMX23 will search for the boostream in a specific format written in NAND flash using specific pattern. Specific pattern guarantees that SoC will still be able to boot even if the bootstream read from NAND is corrupted by bad block.</p>
+<p><a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/freescale-imx/imx-kobs">kobs-ng</a> is the tool of choice when a bootstream must be written in NAND. The only thing is - it did not work with iMX23 and 6.6.y Linux kernel.</p>
+<p>Long story short. I used <a href="http://www.linux-mtd.infradead.org/faq/nand.html#L_nand_nandsim">NAND simulator</a> to debug through kobs-ng and craft a patch. The patch can be found here <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch</a>. What does it include?
+* iMX23/iMX28 SoC detection
+* bugfixes
+* removed annoying warnings
+* DCP crypto hardware can be used to program devices with crypto keys set</p>
+<h2 id="2k-vs-4k-nand-page-size">2k vs. 4k NAND page size</h2>
+<p>Using nandsim to get kobs-ng working was helpful, but the ultimate proof whether iMX23 can boot from NAND is, obviously, iMX23 booting from NAND. And, as always, first it did not work with iMX23 EVK. BootROM was showing 0x80508003 (Unable to find LDLB), see <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/54683/1/IMX23_ROM_Error_Codes.pdf">iMX23 ROM error codes</a>. At least it could find NCB.</p>
+<p>While kobs-ng did not work with iMX23 EVK, it <em>did</em> work fine when programming a custom board with NAND page size = 2k and erase page size = 128k. To recall, iMX23 EVK has Samsung NAND flash with page size = 4k and erase page size = 512k.</p>
+<p>After trying multiple weird things and reading reference manual for another three halfdays I finally found the answer - 64. 64 sectors as the magic stride size used by BootRom to iterate when searching for bootstream structures in NAND. Samsung NAND erase page size and page size are misguiding for kobs-ng since 512k/4k = 128 sectors instead of 64. I think, the stride size given in sectors is adjustuble in OTP fuses:
+<img width="942" height="64" alt="Screenshot from 2026-07-19 13-16-22" src="https://github.com/user-attachments/assets/0a609c01-ad2e-4419-a80d-3b183bc03075" /></p>
+<p>However, having a better solution I did not try it out. "The better solution" was to pass <code>--search_exponent=1</code> argument to kobs-ng. <code>linux-itb.sb</code> is exactly the same ITB file I used to boot from USB, see <a href="#Booting-via-USB">Booting-via-USB</a>:</p>
+<details>
+<summary>Click to view NAND botstream programming output</summary>
+
+
+<pre><code class="language-console"># kobs-ng -d -v -0 -w --search_exponent=1 linux-itb.sb
+MTD CONFIG:
+  chip_0_device_path = &quot;/dev/mtd0&quot;
+  chip_1_device_path = &quot;(null)&quot;
+  search_exponent = 1
+  data_setup_time = 80
+  data_hold_time = 60
+  address_setup_time = 25
+  data_sample_time = 6
+  row_address_size = 3
+  column_address_size = 2
+  read_command_code1 = 0
+  read_command_code2 = 48
+  boot_stream_major_ver[ 7645.560000] trusted_key: kobs-ng sent an empty control message without MSG_MORE.
+sion = 1
+  boot_stream_minor_version = 0
+  boot_stream_sub_version = 0
+  ncb_version = 3
+  boot_stream_1_address = 0
+  boot_stream_2_address = 0
+  secondary_boot_stream_off_in_MB = 64
+/linux-itb.sb: verifying using key 'OTP_KEY_0'
+boot image header:
+  m_digest = 5b5d3464b76174cb9cdd554c6566c884d60323c7
+  m_signature = STMP
+  m_majorVersion = 1
+  m_minorVersion = 1
+  m_flags = ROM_DISPLAY_PROGRESS (1)
+  m_imageBlocks = 827628
+  m_firstBootTagBlock = 9
+  m_firstBootableSectionID = 0
+  m_keyCount = 1
+  m_keyDictionaryBlock = 7
+  m_headerBlocks = 6
+  m_sectionCount = 1
+  m_sectionHeaderSize = 1
+  m_timestamp = Sun Jul 12 20:14:51 2026
+  m_productVersion.m_major = 0x9909
+  m_productVersion.m_minor = 0x9909
+  m_productVersion.m_revision = 0x9909
+  m_componentVersion.m_major = 0x9909
+  m_componentVersion.m_minor = 0x9909
+  m_componentVersion.m_revision = 0x9909
+  m_driveTag = 0
+* Using device stored OTP key
+section header #0:
+  m_identifier = 0
+  m_offset = 10
+  m_length = 827616
+  m_flags = ROM_SECTION_BOOTABLE (0x1)
+* calculated-mac = 786947340d750a442be41e1e4daddb69
+dek dictionary entry #0:
+  m_mac = 786947340d750a442be41e1e4daddb69
+  m_dek = f07306a86ea0e1cadcc3a188af9b5d25
+* Key matched at #0
+* session_key = 53db00645a7e536efefe61a83e4fcc78
+LOAD m_address=0x00001000 m_count=0x00001b34
+CALL m_address=0x00001000 m_data=0x00000000
+LOAD m_address=0x46000000 m_count=0x00c033a3
+LOAD m_address=0x40002000 m_count=0x0009bebc
+JUMP m_address=0x40002000 m_data=0x00000000
+* read SHA1 = 4070af5e2c6c24fd8a7ee515135d397791754691
+* calc SHA1 = 4070af5e2c6c24fd8a7ee515135d397791754691
+/linux-itb.sb: is a valid bootstream for key 'OTP_KEY_0'
+mtd: Linux 6.6
+mtd: use new bch layout raw access mode
+mtd: opening: &quot;/dev/mtd0&quot;
+Cannot open NFC geometry node: &quot;/sys/bus/platform/devices/gpmi-nfc.0/nfc_geometry&quot;, but we can calculate it ourselves.NFC geometry :
+    ECC Strength       : 16
+    Page Size in Bytes : 4314
+    Metadata size      : 10
+    ECC Chunk Size in byte : 512
+    ECC Chunk count        : 8
+    Block Mark Byte Offset : 0
+    Block Mark Bit Offset  : 0
+====================================================
+mtd: opened '/dev/mtd0' - '(null)'
+mtd: max_bootstream_sz = 30408704
+mtd: bootstream_sz = 13242048
+mtd: #1 0x00600000 - 0x02300000 (0x012a0ec0)
+mtd: #2 0x02300000 - 0x04000000 (0x02fa0ec0)
+NCB
+  m_NANDTiming.m_u8DataSetup = 80
+  m_NANDTiming.m_u8DataHold = 60
+  m_NANDTiming.m_u8AddressSetup = 25
+  m_NANDTiming.m_u8DSAMPLE_TIME = 6
+  m_u32DataPageSize = 4096
+  m_u32TotalPageSize = 4314
+  m_u32SectorsPerBlock = 256
+  m_u32SectorInPageMask = 1
+  m_u32SectorToPageShift = 1
+  m_u32NumberOfNANDs = 1
+  m_u32NumRowBytes = 3
+  m_u32NumColumnBytes = 2
+  m_u32TotalInternalDie = 1
+  m_u32InternalPlanesPerDie = 1
+  m_u32CellType = 0
+  m_u32ECCType = 10
+  m_u32EccBlock0Size = 512
+  m_u32EccBlockNSize = 512
+  m_u32EccBlock0EccLevel = 10
+  m_u32NumEccBlocksPerPage = 7
+  m_u32MetadataBytes = 10
+  m_u32EraseThreshold = 0
+  m_u32Read1stCode = 0
+  m_u32Read2ndCode = 48
+  m_u32BootPatch = 0
+  m_u32PatchSectors = 0
+  m_u32Firmware_startingNAND2 = 0
+LDLB
+  LDLB_Version.m_u16Major = 1
+  LDLB_Version.m_u16Minor = 0
+  LDLB_Version.m_u16Sub = 0
+  m_u32NANDBitmap = 0
+  m_u32Firmware_startingNAND = 0
+  m_u32Firmware_startingSector = 3072
+  m_u32Firmware_sectorStride = 0
+  m_uSectorsInFirmware = 6466
+  m_u32Firmware_startingNAND2 = 0
+  m_u32Firmware_startingSector2 = 17920
+  m_u32Firmware_sectorStride2 = 0
+  m_uSectorsInFirmware2 = 6466
+  FirmwareVersion.m_u16Major = 1
+  FirmwareVersion.m_u16Minor = 0
+  FirmwareVersion.m_u16Sub = 0
+  FirmwareVersion.m_u16Reserved = 0
+  m_u32DiscoveredBBTableSector = 2048
+  m_u32DiscoveredBBTableSector2 = 2560
+DBBT
+  m_u32NumberBB_NAND0 = 0
+  m_u32NumberBB_NAND1 = 0
+  m_u32NumberBB_NAND2 = 0
+  m_u32NumberBB_NAND3 = 0
+  m_u32Number2KPagesBB_NAND0 = 0
+  m_u32Number2KPagesBB_NAND1 = 0
+  m_u32Number2KPagesBB_NAND2 = 0
+  m_u32Number2KPagesBB_NAND3 = 0
+Firmware: image #0 @ 0x600000 size 0xca1000 - available 0x1d00000
+Firmware: image #1 @ 0x2300000 size 0xca1000 - available 0x1d00000
+mtd: Writting firmware image #0 @0: 0x00600000 - 0x012a1000
+mtd: erasing @0:0x600000-0x680000
+mtd: erasing @0:0x680000-0x700000
+mtd: erasing @0:0x700000-0x780000
+mtd: erasing @0:0x780000-0x800000
+mtd: erasing @0:0x800000-0x880000
+mtd: erasing @0:0x880000-0x900000
+mtd: erasing @0:0x900000-0x980000
+mtd: erasing @0:0x980000-0xa00000
+mtd: erasing @0:0xa00000-0xa80000
+mtd: erasing @0:0xa80000-0xb00000
+mtd: erasing @0:0xb00000-0xb80000
+mtd: erasing @0:0xb80000-0xc00000
+mtd: erasing @0:0xc00000-0xc80000
+mtd: erasing @0:0xc80000-0xd00000
+mtd: erasing @0:0xd00000-0xd80000
+mtd: erasing @0:0xd80000-0xe00000
+mtd: erasing @0:0xe00000-0xe80000
+mtd: erasing @0:0xe80000-0xf00000
+mtd: erasing @0:0xf00000-0xf80000
+mtd: erasing @0:0xf80000-0x1000000
+mtd: erasing @0:0x1000000-0x1080000
+mtd: erasing @0:0x1080000-0x1100000
+mtd: erasing @0:0x1100000-0x1180000
+mtd: erasing @0:0x1180000-0x1200000
+mtd: erasing @0:0x1200000-0x1280000
+mtd: erasing @0:0x1280000-0x1300000
+mtd: Writting firmware image #1 @0: 0x02300000 - 0x02fa1000
+mtd: erasing @0:0x2300000-0x2380000
+mtd: erasing @0:0x2380000-0x2400000
+mtd: erasing @0:0x2400000-0x2480000
+mtd: erasing @0:0x2480000-0x2500000
+mtd: erasing @0:0x2500000-0x2580000
+mtd: erasing @0:0x2580000-0x2600000
+mtd: erasing @0:0x2600000-0x2680000
+mtd: erasing @0:0x2680000-0x2700000
+mtd: erasing @0:0x2700000-0x2780000
+mtd: erasing @0:0x2780000-0x2800000
+mtd: erasing @0:0x2800000-0x2880000
+mtd: erasing @0:0x2880000-0x2900000
+mtd: erasing @0:0x2900000-0x2980000
+mtd: erasing @0:0x2980000-0x2a00000
+mtd: erasing @0:0x2a00000-0x2a80000
+mtd: erasing @0:0x2a80000-0x2b00000
+mtd: erasing @0:0x2b00000-0x2b80000
+mtd: erasing @0:0x2b80000-0x2c00000
+mtd: erasing @0:0x2c00000-0x2c80000
+mtd: erasing @0:0x2c80000-0x2d00000
+mtd: erasing @0:0x2d00000-0x2d80000
+mtd: erasing @0:0x2d80000-0x2e00000
+mtd: erasing @0:0x2e00000-0x2e80000
+mtd: erasing @0:0x2e80000-0x2f00000
+mtd: erasing @0:0x2f00000-0x2f80000
+mtd: erasing @0:0x2f80000-0x3000000
+NCB versions differ, 3 is used.
+-------------- Start to write the [ NCB ] -----
+mtd: erasing @0:0x0-0x80000
+mtd: Writing NCB0 [ @0:0x0 ] (10da) *
+mtd: erasing @0:0x80000-0x100000
+mtd: Writing NCB1 [ @0:0x80000 ] (10da) *
+mtd: erasing @0:0x100000-0x180000
+mtd: Writing NCB0 [ @0:0x100000 ] (10da) *
+mtd: erasing @0:0x180000-0x200000
+mtd: Writing NCB1 [ @0:0x180000 ] (10da) *
+mtd_commit_bcb(NCB): status 0
+
+-------------- Start to write the [ LDLB ] -----
+mtd: erasing @0:0x200000-0x280000
+mtd: Writing LDLB0 [ @0:0x200000 ] (1000) *
+mtd: erasing @0:0x280000-0x300000
+mtd: Writing LDLB1 [ @0:0x280000 ] (1000) *
+mtd: erasing @0:0x300000-0x380000
+mtd: Writing LDLB0 [ @0:0x300000 ] (1000) *
+mtd: erasing @0:0x380000-0x400000
+mtd: Writing LDLB1 [ @0:0x380000 ] (1000) *
+mtd_commit_bcb(LDLB): status 0
+
+-------------- Start to write the [ DBBT ] -----
+mtd: erasing @0:0x400000-0x480000
+mtd: Writing DBBT0 [ @0:0x400000 ] (1000) *
+mtd: erasing @0:0x480000-0x500000
+mtd: Writing DBBT1 [ @0:0x480000 ] (1000) *
+mtd: erasing @0:0x500000-0x580000
+mtd: Writing DBBT0 [ @0:0x500000 ] (1000) *
+mtd: erasing @0:0x580000-0x600000
+mtd: Writing DBBT1 [ @0:0x580000 ] (1000) *
+mtd_commit_bcb(DBBT): status 0
+</code></pre>
+
+
+</details>
+
+<p>What is important in the log above: all structures (NCB, LDLB and DBBT) are equally spaced by exactly one erase page.</p>
+<p>And finally, happy BootROM booting from NAND:</p>
+<details>
+<summary>Click to view NAND boot output</summary>
+
+
+<pre><code class="language-console"># HTLCLLJ
+
+U-Boot 2024.04 (Jul 10 2026 - 19:13:50 +1200)
+
+CPU:   Freescale i.MX23 rev1.3 at 454 MHz
+BOOT:  NAND
+DRAM:  128 MiB
+Core:  22 devices, 15 uclasses, devicetree: separate
+NAND:  4096 MiB
+MMC:   MXS MMC: 0
+Loading Environment from MMC... MMC: no card present
+*** Warning - No block device, using default environment
+
+Loading Environment from nowhere... OK
+In:    serial
+Out:   serial
+Err:   serial
+Hit any key to stop autoboot:  0 
+MMC: no card present
+MMC: no card present
+Try booting from ITB at 0x46000000
+## Loading kernel from FIT Image at 46000000 ...
+   Using 'config-imx23-evk-enc28j60' configuration
+   Verifying Hash Integrity ... OK
+   Trying 'kernel' kernel subimage
+     Description:  Kernel
+     Type:         Kernel Image
+     Compression:  uncompressed
+     Data Start:   0x460000b4
+     Data Size:    6737048 Bytes = 6.4 MiB
+     Architecture: ARM
+     OS:           Linux
+     Load Address: 0x42000000
+     Entry Point:  0x42000000
+     Hash algo:    sha256
+     Hash value:   f237d652f1c62d43abbfd604d9030ae348a3f956b2a1caae445c1c5c5234374e
+   Verifying Hash Integrity ... sha256+ OK
+## Loading ramdisk from FIT Image at 46000000 ...
+   Using 'config-imx23-evk-enc28j60' configuration
+   Verifying Hash Integrity ... OK
+   Trying 'ramdisk' ramdisk subimage
+     Description:  Ramdisk
+     Type:         RAMDisk Image
+     Compression:  uncompressed
+     Data Start:   0x4666ce38
+     Data Size:    5830130 Bytes = 5.6 MiB
+     Architecture: ARM
+     OS:           Linux
+     Load Address: 0x43000000
+     Entry Point:  unavailable
+     Hash algo:    sha256
+     Hash value:   c1b62d1f366459a64f55fe07a823ccecd8ce3eab0d00d6a02b6a2e280788ed00
+   Verifying Hash Integrity ... sha256+ OK
+   Loading ramdisk from 0x4666ce38 to 0x43000000
+## Loading fdt from FIT Image at 46000000 ...
+   Using 'config-imx23-evk-enc28j60' configuration
+   Verifying Hash Integrity ... OK
+   Trying 'fdt-imx23-evk-enc28j60' fdt subimage
+     Description:  Device Tree: imx23-evk-enc28j60
+     Type:         Flat Device Tree
+     Compression:  uncompressed
+     Data Start:   0x46bfc530
+     Data Size:    13569 Bytes = 13.3 KiB
+     Architecture: Unknown Architecture
+     Load Address: 0x41000000
+     Hash algo:    sha256
+     Hash value:   b3b7c6179eeba6b6f0ca10d368ca6316f01837bbf28a86fb864c20b57ec31c43
+   Verifying Hash Integrity ... sha256+ OK
+   Loading fdt from 0x46bfc530 to 0x41000000
+   Booting using the fdt blob at 0x41000000
+Working FDT set to 41000000
+   Loading Kernel Image to 42000000
+   Loading Ramdisk to 475c3000, end 47b525f2 ... OK
+   Loading Device Tree to 475bc000, end 475c2500 ... OK
+Working FDT set to 475bc000
+
+Starting kernel ...
+
+[    0.000000] Booting Linux on physical CPU 0x0
+[    0.000000] Linux version 6.6.143 (hal@ade-laptop) (arm-linux-gcc.br_real (Buildroot 2021.11-18033-g83947c7bb6) 14.3.0, GNU ld (GNU Binutils) 2.43.1) #1 Fri Jul 10 19:31:32 NZST 2026
+[    0.000000] CPU: ARM926EJ-S [41069265] revision 5 (ARMv5TEJ), cr=0005317f
+[    0.000000] CPU: VIVT data cache, VIVT instruction cache
+[    0.000000] OF: fdt: Machine model: Freescale i.MX23 Evaluation Kit
+[    0.000000] Memory policy: Data cache writeback
+[    0.000000] Zone ranges:
+[    0.000000]   Normal   [mem 0x0000000040000000-0x0000000047ffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x0000000047ffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x0000000047ffffff]
+[    0.000000] Kernel command line: console=ttyAMA0,115200 root=/dev/ram0 rw rootwait=30
+[    0.000000] Dentry cache hash table entries: 16384 (order: 4, 65536 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 8192 (order: 3, 32768 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 32512
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] Memory: 103396K/131072K available (9455K kernel code, 1228K rwdata, 3016K rodata, 256K init, 6534K bss, 27676K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=32, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+[    0.000000] Running RCU self tests
+[    0.000000] Running RCU synchronous self tests
+[    0.000000] NR_IRQS: 16, nr_irqs: 16, preallocated irqs: 16
+[    0.000000] clocksource: mxs_timer: mask: 0xffff max_cycles: 0xffff, max_idle_ns: 911346093 ns
+[    0.000000] Console: colour dummy device 80x30
+[    0.000000] Lock dependency validator: Copyright (c) 2006 Red Hat, Inc., Ingo Molnar
+[    0.000000] ... MAX_LOCKDEP_SUBCLASSES:  8
+[    0.000000] ... MAX_LOCK_DEPTH:          48
+[    0.000000] ... MAX_LOCKDEP_KEYS:        8192
+[    0.000000] ... CLASSHASH_SIZE:          4096
+[    0.000000] ... MAX_LOCKDEP_ENTRIES:     32768
+[    0.000000] ... MAX_LOCKDEP_CHAINS:      65536
+[    0.000000] ... CHAINHASH_SIZE:          32768
+[    0.000000]  memory used by lock dependency info: 4125 kB
+[    0.000000]  memory used for stack traces: 2112 kB
+[    0.000000]  per task-struct memory footprint: 1536 bytes
+[    0.000000] sched_clock: 32 bits at 100 Hz, resolution 10000000ns, wraps every 21474836475000000ns
+[    0.000000] Calibrating delay loop... 227.32 BogoMIPS (lpj=1136640)
+[    0.080000] CPU: Testing write buffer coherency: ok
+[    0.080000] pid_max: default: 32768 minimum: 301
+[    0.080000] Mount-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.080000] Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.110000] Setting up static identity map for 0x40008400 - 0x40008458
+[    0.130000] devtmpfs: initialized
+[    0.200000] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+[    0.200000] futex hash table entries: 256 (order: 2, 12288 bytes, linear)
+[    0.210000] pinctrl core: initialized pinctrl subsystem
+[    0.240000] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.240000] DMA: preallocated 256 KiB pool for atomic coherent allocations
+[    0.300000] /apb@80000000/apbh@80000000/pinctrl@80018000: Fixed dependency cycle(s) with /apb@80000000/apbh@80000000/pinctrl@80018000/hog@0
+[    0.360000] gpio gpiochip0: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.390000] gpio gpiochip1: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.430000] gpio gpiochip2: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.500000] /apb@80000000/apbh@80000000/lcdif@80030000: Fixed dependency cycle(s) with /panel
+[    0.500000] /panel: Fixed dependency cycle(s) with /apb@80000000/apbh@80000000/lcdif@80030000
+[    0.520000] Serial: AMBA PL011 UART driver
+[    0.540000] 80070000.serial: ttyAMA0 at MMIO 0x80070000 (irq = 116, base_baud = 0) is a PL011 rev2
+[    0.540000] printk: console [ttyAMA0] enabled
+[    0.890000] SCSI subsystem initialized
+[    0.900000] regulator-vddio-sd0 enforce active low on GPIO handle
+[    0.930000] usbcore: registered new interface driver usbfs
+[    0.960000] usbcore: registered new interface driver hub
+[    0.960000] usbcore: registered new device driver usb
+[    0.980000] pps_core: LinuxPPS API ver. 1 registered
+[    0.990000] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti &lt;giometti@linux.it&gt;
+[    1.000000] PTP clock support registered
+[    1.020000] Advanced Linux Sound Architecture Driver Initialized.
+[    1.080000] clocksource: Switched to clocksource mxs_timer
+[    1.580000] NET: Registered PF_INET protocol family
+[    1.590000] IP idents hash table entries: 2048 (order: 2, 16384 bytes, linear)
+[    1.640000] tcp_listen_portaddr_hash hash table entries: 128 (order: 1, 5120 bytes, linear)
+[    1.650000] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    1.660000] TCP established hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    1.670000] TCP bind hash table entries: 1024 (order: 5, 81920 bytes, linear)
+[    1.680000] TCP: Hash tables configured (established 1024 bind 1024)
+[    1.710000] UDP hash table entries: 256 (order: 3, 24576 bytes, linear)
+[    1.720000] UDP-Lite hash table entries: 256 (order: 3, 24576 bytes, linear)
+[    1.730000] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    1.740000] RPC: Registered named UNIX socket transport module.
+[    1.750000] RPC: Registered udp transport module.
+[    1.760000] RPC: Registered tcp transport module.
+[    1.760000] RPC: Registered tcp-with-tls transport module.
+[    1.770000] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    1.830000] Unpacking initramfs...
+[    4.920000] workingset: timestamp_bits=30 max_order=15 bucket_order=0
+[    4.940000] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    4.960000] NFS: Registering the id_resolver key type
+[    4.980000] Key type id_resolver registered
+[    4.980000] Key type id_legacy registered
+[    5.000000] ntfs3: Read-only LZX/Xpress compression included
+[    5.000000] jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+[    5.020000] NET: Registered PF_ALG protocol family
+[    5.040000] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 248)
+[    5.040000] io scheduler mq-deadline registered
+[    5.050000] io scheduler kyber registered
+[    5.060000] io scheduler bfq registered
+[    5.180000] mxs-dma 80004000.dma-controller: initialized
+[    5.240000] mxs-dma 80024000.dma-controller: initialized
+[    5.280000] 8006c000.serial: ttyAPP0 at MMIO 0x8006c000 (irq = 118, base_baud = 1500000) is a 8006c000.serial
+[    5.300000] mxs-auart 8006c000.serial: Found APPUART 3.0.0
+[    5.420000] [drm] Initialized mxsfb-drm 1.0.0 20160824 for 80030000.lcdif on minor 0
+[    5.680000] Console: switching to colour frame buffer device 100x30
+[    5.720000] mxsfb 80030000.lcdif: [drm] fb0: mxsfb-drmdrmfb frame buffer device
+[    5.800000] gpmi-nand 8000c000.nand-controller: clock setting: expected 22000000, got 21818182
+[    5.820000] nand: device found, Manufacturer ID: 0xec, Chip ID: 0xd7
+[    5.830000] nand: Samsung NAND 4GiB 3,3V 8-bit
+[    5.830000] nand: 4096 MiB, MLC, erase size: 512 KiB, page size: 4096, OOB size: 218
+[    5.860000] gpmi-nand 8000c000.nand-controller: clock setting: expected 22000000, got 21818182
+[    5.870000] gpmi-nand 8000c000.nand-controller: Scanning for an NCB fingerprint...
+[    5.900000] gpmi-nand 8000c000.nand-controller:  Found a fingerprint
+[    5.900000] Scanning device for bad blocks
+[    6.080000] Bad eraseblock 137 at 0x000004480000
+[    8.270000] Freeing initrd memory: 5696K
+[   10.910000] Bad eraseblock 5162 at 0x0000a1500000
+[   11.150000] Bad eraseblock 5475 at 0x0000ab180000
+[   11.230000] Bad eraseblock 5573 at 0x0000ae280000
+[   12.230000] Bad eraseblock 6872 at 0x0000d6c00000
+[   12.320000] Bad eraseblock 6976 at 0x0000da000000
+[   12.550000] Bad eraseblock 7278 at 0x0000e3700000
+[   12.760000] random: crng init done
+[   13.270000] 8 fixed-partitions partitions found on MTD device gpmi-nand
+[   13.270000] Creating 8 MTD partitions on &quot;gpmi-nand&quot;:
+[   13.280000] 0x000000000000-0x000004000000 : &quot;boot&quot;
+[   13.340000] 0x000004000000-0x000005000000 : &quot;env1&quot;
+[   13.380000] 0x000005000000-0x000006000000 : &quot;env2&quot;
+[   13.410000] 0x000006000000-0x000016000000 : &quot;rootfs1&quot;
+[   13.450000] 0x000016000000-0x000026000000 : &quot;rootfs2&quot;
+[   13.490000] 0x000026000000-0x000036000000 : &quot;data1&quot;
+[   13.540000] 0x000036000000-0x000046000000 : &quot;data2&quot;
+[   13.570000] 0x000046000000-0x000100000000 : &quot;spare&quot;
+[   13.670000] gpmi-nand 8000c000.nand-controller: driver registered.
+[   13.740000] tun: Universal TUN/TAP device driver, 1.6
+[   13.760000] enc28j60 spi0.0: Ethernet driver 1.02 loaded
+[   13.790000] SLIP: version 0.8.4-NET3.019-NEWTTY (dynamic channels, max=256).
+[   13.800000] CSLIP: code copyright 1989 Regents of the University of California.
+[   13.810000] usbcore: registered new interface driver asix
+[   13.820000] usbcore: registered new interface driver ax88179_178a
+[   13.830000] usbcore: registered new interface driver cdc_ether
+[   13.830000] usbcore: registered new interface driver smsc95xx
+[   13.840000] usbcore: registered new interface driver net1080
+[   13.850000] usbcore: registered new interface driver cdc_subset
+[   13.860000] usbcore: registered new interface driver zaurus
+[   13.860000] usbcore: registered new interface driver cdc_ncm
+[   13.870000] usbcore: registered new interface driver r8153_ecm
+[   13.880000] usbcore: registered new interface driver usb-storage
+[   13.930000] ------------[ cut here ]------------
+[   13.940000] WARNING: CPU: 0 PID: 1 at drivers/base/platform.c:450 __platform_get_irq_byname+0xb4/0xd0
+[   13.950000] 0 might be an invalid IRQ number
+[   13.950000] Modules linked in:
+[   13.950000] CPU: 0 PID: 1 Comm: swapper Not tainted 6.6.143 #1
+[   13.950000] Hardware name: Freescale MXS (Device Tree)
+[   13.950000]  unwind_backtrace from show_stack+0x10/0x14
+[   13.950000]  show_stack from dump_stack_lvl+0x38/0x4c
+[   13.950000]  dump_stack_lvl from __warn+0x78/0x138
+[   13.950000]  __warn from warn_slowpath_fmt+0x94/0xcc
+[   13.950000]  warn_slowpath_fmt from __platform_get_irq_byname+0xb4/0xd0
+[   13.950000]  __platform_get_irq_byname from platform_get_irq_byname+0x10/0x30
+[   13.950000]  platform_get_irq_byname from mxs_lradc_ts_probe+0x18c/0x378
+[   13.950000]  mxs_lradc_ts_probe from platform_probe+0x58/0xb4
+[   13.950000]  platform_probe from really_probe+0xc4/0x2dc
+[   13.950000]  really_probe from __driver_probe_device+0x90/0x1c4
+[   13.950000]  __driver_probe_device from driver_probe_device+0x30/0x11c
+[   13.950000]  driver_probe_device from __driver_attach+0x94/0x18c
+[   13.950000]  __driver_attach from bus_for_each_dev+0x7c/0xd0
+[   13.950000]  bus_for_each_dev from bus_add_driver+0xc4/0x1ec
+[   13.950000]  bus_add_driver from driver_register+0x80/0x118
+[   13.950000]  driver_register from do_one_initcall+0x60/0x238
+[   13.950000]  do_one_initcall from kernel_init_freeable+0x194/0x220
+[   13.950000]  kernel_init_freeable from kernel_init+0x10/0x108
+[   13.950000]  kernel_init from ret_from_fork+0x14/0x38
+[   13.950000] Exception stack(0xc8819fb0 to 0xc8819ff8)
+[   13.950000] 9fa0:                                     00000000 00000000 00000000 00000000
+[   13.950000] 9fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[   13.950000] 9fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+[   14.110000] irq event stamp: 339121
+[   14.110000] hardirqs last  enabled at (339129): [&lt;c00714c0&gt;] console_unlock+0x138/0x168
+[   14.120000] hardirqs last disabled at (339138): [&lt;c00714ac&gt;] console_unlock+0x124/0x168
+[   14.130000] softirqs last  enabled at (339120): [&lt;c001ff54&gt;] handle_softirqs+0x31c/0x410
+[   14.140000] softirqs last disabled at (339111): [&lt;c00201e0&gt;] __irq_exit_rcu+0x12c/0x164
+[   14.140000] ---[ end trace 0000000000000000 ]---
+[   14.160000] input: mxs-lradc-ts as /devices/soc0/80000000.apb/80040000.apbx/80050000.lradc/mxs-lradc-ts/input/input0
+[   14.190000] stmp3xxx-rtc 8005c000.rtc: registered as rtc0
+[   14.200000] stmp3xxx-rtc 8005c000.rtc: setting system clock to 1970-01-01T02:15:28 UTC (8128)
+[   14.210000] i2c_dev: i2c /dev entries driver
+[   14.230000] stmp3xxx_rtc_wdt stmp3xxx_rtc_wdt: initialized watchdog with heartbeat 19s
+[   14.250000] mxs-dcp 80028000.crypto: initialized
+[   14.260000] mxs-dcp 80028000.crypto: Not in Trusted or Secure State, Non-volatile Test Key in effect
+[   14.290000] usbcore: registered new interface driver usbhid
+[   14.300000] usbhid: USB HID core driver
+[   14.360000] mxs-builtin-codec 80048000.mxs-builtin-codec: Registered mxs-builtin-codec
+[   14.390000] mxs-builtin-cpu-dai 80048000.mxs-builtin-cpu-dai: Registered mxs-adc-pcm-driver
+[   14.390000] mxs-builtin-cpu-dai 80048000.mxs-builtin-cpu-dai: Registered mxs-builtin-codec-dai
+[   14.410000] NET: Registered PF_PACKET protocol family
+[   14.410000] Key type dns_resolver registered
+[   14.530000] registered taskstats version 1
+[   14.840000] at24 0-0050: supply vcc not found, using dummy regulator
+[   14.870000] at24 0-0050: 16384 byte 24lc128 EEPROM, writable, 64 bytes/write
+[   14.880000] input: adc-keys as /devices/soc0/adc-keys/input/input1
+[   14.970000] clk: Disabling unused clocks
+[   14.980000] ALSA device list:
+[   14.990000]   #0: mxs-builtin-audio
+[   15.000000] uart-pl011 80070000.serial: no DMA platform data
+[   15.010000] Freeing unused kernel image (initmem) memory: 256K
+[   15.020000] Kernel memory protection not selected by kernel config.
+[   15.030000] Run /init as init process
+Saving 256 bits of creditable seed for next boot
+Starting syslogd: OK
+Starting klogd: OK
+Running sysctl: OK
+Starting mdev... OK
+Starting network: OK
+Starting crond: OK
+
+Welcome to Buildroot
+buildroot login:
+</code></pre>
+
+
+</details>
+
+<h2 id="8k-nand-page-size">8k NAND page size</h2>
+<p>8k pages are supported by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">patch</a> as found and copied from <a href="https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944">https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944</a>. However, not having hardware with NAND flash with such page size I could not test it, so that 8k page size support is more for completeness.</p>
+<h1 id="references">References</h1>
+<p>The references listed here are not intended to be exhaustive.</p>
+<ul>
+<li><a href="https://www.nxp.com/docs/en/reference-manual/IMX23RM.pdf">i.MX23 Applications Processor Reference Manual</a></li>
+<li><a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf">Chip Errata for the i.MX23</a></li>
+<li><a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/54683/1/IMX23_ROM_Error_Codes.pdf">iMX23 ROM error codes</a></li>
+<li><a href="https://github.com/OLIMEX/OLINUXINO/blob/master/HARDWARE/iMX233-OLinuXino-Mini/1.%20Latest%20hardware%20revision/iMX233-OLINUXINO-MINI%20hardware%20revision%20E/iMX233-OLINUXINO-MINI_Rev_E.pdf">Olinuxino Mini schematics</a></li>
+<li><a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">iMX233 EVK schematics (SPF_77066.pdf)</a></li>
+<li><a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/152675/1/AMF-AUT-T2324.pdf">MfgTool</a></li>
+<li><a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/imx-sb-loader">sb_loader for Linux</a></li>
+<li><a href="https://github.com/nxp-imx/sb_loader/releases/download/1.0/sb_loader.exe">sb_loader for Windows</a></li>
+<li><a href="https://github.com/usbarmory/mxs-dcp">DCP driver by usbarmory</a></li>
+<li><a href="https://www.marcusfolkesson.se/blog/audio-and-embedded-linux/">Audio and Embedded Linux by Marcus Folkesson</a></li>
+<li><a href="https://bootlin.com/doc/training/audio/audio-slides.pdf">Audio with embedded Linux training by Bootlin</a></li>
+<li><a href="https://github.com/ITserve/imx23-audio">iMX23 audio driver by Michal Ulianko</a></li>
+</ul>
+<h1 id="post-scriptum">Post scriptum</h1>
+<p>It would have been boring or even impossible to write this article without looping 
+<a href="https://www.youtube.com/watch?v=CrP_Rf5gFes&amp;t=3901s"><img alt="SYNTHWAVE TITANS: RAGE &amp; RHYTHM [VOL.2]" src="https://www.youtube.com/watch?v=CrP_Rf5gFes&amp;t=3901s/0.jpg" /></a>!</p>
+<hr><p><small><a href="https://github.com/xaelsouth/xaelsouth.github.io/wiki/On-iMX23">Edit this page in the wiki</a></small></p></main>
+</body>
+</html>
