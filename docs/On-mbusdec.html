@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On mbusdec and rtl-wmbus – xaelsouth.github.io</title>
+<meta name="description" content="On mbusdec and rtl-wmbus rtl-wmbus receives Wireless M-Bus signals from an SDR and turns them into telegrams. What if you want to inspect the meter data inside ">
+<link rel="canonical" href="https://xaelsouth.github.io/On-mbusdec.html">
+<style>
+body{font:16px/1.6 system-ui,sans-serif;margin:0;display:flex;flex-wrap:wrap}
+nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa}
+main{flex:1 1 30em;max-width:60em;padding:1em 2em}
+pre{background:#f6f8fa;padding:1em;overflow:auto}
+code{background:#f6f8fa}table{border-collapse:collapse}
+td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
+</style>
+</head>
+<body>
+<nav></nav>
+<main><h1 id="on-mbusdec-and-rtl-wmbus">On mbusdec and rtl-wmbus</h1>
+<p><a href="https://github.com/xaelsouth/rtl-wmbus">rtl-wmbus</a> receives Wireless M-Bus
+signals from an SDR and turns them into telegrams. What if you want to inspect
+the meter data inside those telegrams? <a href="https://github.com/xaelsouth/mbusdec">mbusdec</a>
+is a C library and command-line decoder that can read the receiver's output
+and produce newline-delimited JSON.</p>
+<p>The two programs do different jobs. rtl-wmbus demodulates the radio signal,
+checks the received packet and removes link-layer CRC bytes. mbusdec parses
+the resulting telegram, identifies the meter, and decodes supported application
+records. The library also supports wired M-Bus long frames, though the CLI
+currently accepts only the rtl-wmbus stream format.</p>
+<blockquote>
+<p>[!NOTE]
+mbusdec was written and tested by AI as an experiment using the EN 13757
+and OMS specifications and publicly available test vectors, including
+wmbusmeters examples. It implements a subset of the standards and is not
+certified. Check the project README for supported formats and limitations.</p>
+</blockquote>
+<h2 id="building">Building</h2>
+<p>The following assumes that both repositories have been checked out side by
+side, and that rtl-wmbus's RTL-SDR dependencies are installed:</p>
+<pre><code class="language-sh">cd rtl-wmbus
+make release
+cd ../mbusdec
+cmake -S . -B build
+cmake --build build
+cd ..
+</code></pre>
+<p>mbusdec needs CMake, a C11 compiler and the math library. Its default AES
+backend is bundled; OpenSSL is an optional alternative. See the project README
+for build options, tests and platform-specific instructions.</p>
+<h2 id="decoding-a-recording">Decoding a recording</h2>
+<p>From the parent directory of the two checkouts, try the included I/Q sample:</p>
+<pre><code class="language-sh">./rtl-wmbus/build/rtl_wmbus \
+  &lt; ./rtl-wmbus/samples/rtlsdr_868.950M_1M6_samples2.cu8 \
+  | ./mbusdec/build/mbusdec
+</code></pre>
+<p>Each output line is a JSON object, either a decoded telegram or an error. For
+example, a decoded telegram contains identities and records where these are
+available. <code>decode_status</code> describes the decoder outcome; it is distinct from
+the meter's transport status. Receiver RSSI values are included when available,
+but are not calibrated dBm measurements.</p>
+<p>Not every reception necessarily decodes: this sample can also produce a
+receiver-reported CRC failure or an unsupported telegram. mbusdec reports
+these as JSON errors, continues processing subsequent lines, and exits nonzero
+at end of input if any line failed. It trusts rtl-wmbus's CRC status because
+the CRC bytes have already been removed.</p>
+<p>For a live T1/C1 receiver, the same decoder can follow <code>rtl_sdr</code> and
+rtl-wmbus:</p>
+<pre><code class="language-sh">rtl_sdr -f 868.95M -s 1600000 - 2&gt;/dev/null \
+  | ./rtl-wmbus/build/rtl_wmbus \
+  | ./mbusdec/build/mbusdec
+</code></pre>
+<p>The rtl-wmbus README describes other modes, frequency settings and receiver
+options. Receive and decode only telegrams you are authorized to access, and
+protect any meter data you collect.</p>
+<h2 id="keys-and-address-filters">Keys and address filters</h2>
+<p>Some meters encrypt their application data. Supply the appropriate meter keys
+in a JSON file with <code>--keys</code>:</p>
+<pre><code class="language-sh">rtl_sdr -f 868.95M -s 1600000 - 2&gt;/dev/null \
+  | ./rtl-wmbus/build/rtl_wmbus \
+  | ./mbusdec/build/mbusdec --keys keys.json --filter filter.json
+</code></pre>
+<p>Both files are read at startup. The
+<a href="https://github.com/xaelsouth/mbusdec/blob/master/examples/rtl-keys.json">example key file</a>
+shows the address and key format; its keys are public test values, not keys
+for your meters. Keep real keys private. The
+<a href="https://github.com/xaelsouth/mbusdec/blob/master/examples/filter.json">example filter</a>
+uses the same address fields but does not need keys.</p>
+<p>A filter entry can identify an application-layer address, optionally
+constrained by a link-layer address, or just a link-layer address. Any matching
+entry lets a telegram through; an empty array (<code>[]</code>) allows all telegrams.
+Nonmatching telegrams are silently skipped before decryption. Omit <code>--filter</code>
+to process all telegrams, and omit <code>--keys</code> when keys are not needed.
+Malformed input, CRC failures and headers that cannot be inspected are still
+reported as errors. Filter addresses in the example are illustrative: replace
+them with the identities of the meters you want to monitor.</p>
+<h2 id="using-the-library">Using the library</h2>
+<p>mbusdec can also be linked into a C application without the CLI. The build
+produces <code>libmbus.a</code> and the public interface is in <code>mbus.h</code>. The library
+accepts wired long frames and CRC-stripped wireless telegrams, supports
+selected encrypted transport modes, and lets applications register
+manufacturer-specific decoders. See the
+<a href="https://github.com/xaelsouth/mbusdec#library">library documentation and examples</a>
+for the API, supported records and limitations.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://github.com/xaelsouth/mbusdec">mbusdec README</a></li>
+<li><a href="https://github.com/xaelsouth/rtl-wmbus">rtl-wmbus README</a></li>
+<li><a href="https://oms-group.org/en/specification/">OMS Group specifications</a></li>
+</ul>
+<hr><p><small><a href="https://github.com/xaelsouth/xaelsouth.github.io/wiki/On-mbusdec">Edit this page in the wiki</a></small></p></main>
+</body>
+</html>
