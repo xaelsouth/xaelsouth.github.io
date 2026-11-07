@@ -3,7 +3,7 @@
 import html
 import re
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -33,6 +33,7 @@ td,th{{border:1px solid #d0d7de;padding:.3em .6em}}img{{max-width:100%}}
   nav{{flex-basis:100%;position:static;max-height:none}}
   main{{min-width:0;padding:1em}}
 }}
+.page-meta{{margin-top:-.6em;color:#57606a;font-size:.9em}}
 .tag-cloud{{display:flex;flex-wrap:wrap;align-items:baseline;gap:.35em 1em}}
 .tag-cloud a{{text-decoration:none}}
 .tag-cloud a:hover{{text-decoration:underline}}
@@ -49,6 +50,7 @@ td,th{{border:1px solid #d0d7de;padding:.3em .6em}}img{{max-width:100%}}
 
 LINK = re.compile(r'href="([^"#?:]+)((?:#[^"]*)?)"')
 TAGS = re.compile(r"<!--\s*tags:\s*(.*?)\s*-->\s*", re.I | re.S)
+READ_TIME = re.compile(r"<!--\s*read-time:\s*(.*?)\s*-->\s*", re.I | re.S)
 
 
 def extract_tags(text):
@@ -63,6 +65,13 @@ def extract_tags(text):
             tags.append(tag)
             seen.add(tag.casefold())
     return tags, text[:match.start()] + text[match.end():]
+
+
+def extract_read_time(text):
+    match = READ_TIME.search(text)
+    if not match:
+        return None, text
+    return match[1].strip(), text[:match.start()] + text[match.end():]
 
 
 def tag_id(tag):
@@ -151,6 +160,7 @@ def first_text(body):
 
 def main(wiki, out, repo):
     wiki, out = Path(wiki), Path(out)
+    generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("*.html"):
         old.unlink()
@@ -164,7 +174,27 @@ def main(wiki, out, repo):
             continue
         name = src.stem
         tags, source = extract_tags(src.read_text(encoding="utf-8"))
+        read_time, source = extract_read_time(source)
         body, toc = render(source)
+        description = first_text(body)
+        if re.search(r"</h1>", body):
+            page_meta = []
+            if read_time:
+                page_meta.append(f"Estimated reading time: {html.escape(read_time)}")
+            generated_at_html = html.escape(generated_at)
+            page_meta.append(
+                f'Page generated: <time datetime="{generated_at_html}">'
+                f"{generated_at_html}</time>"
+            )
+            body = re.sub(
+                r"</h1>",
+                lambda match: (
+                    f'{match[0]}<p class="page-meta">'
+                    f'{" &middot; ".join(page_meta)}</p>'
+                ),
+                body,
+                count=1,
+            )
         page_nav = nav
         if toc:
             page_nav += '<section aria-label="On this page"><h3>On this page</h3>' + toc + "</section>"
@@ -173,7 +203,7 @@ def main(wiki, out, repo):
         slug = "index" if name == "Home" else name
         page = PAGE.format(
             title=html.escape(f"{title} – {SITE}"),
-            description=first_text(body),
+            description=description,
             canonical=BASE_URL + ("" if slug == "index" else quote(slug) + ".html"),
             nav=page_nav,
             body=body,

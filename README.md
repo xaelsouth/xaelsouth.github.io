@@ -11,5 +11,13 @@ cloud, for example:
 <!-- tags: embedded, Linux, i.MX23 -->
 ```
 
-The comment is consumed by the site generator and does not appear in the
-published article. Edit the articles in the wiki as usual.
+Add a `read-time` comment to show an estimated reading time below the article
+title:
+
+```markdown
+<!-- read-time: 25 minutes -->
+```
+
+Both comments are consumed by the site generator and do not appear in the
+published article. The generator displays its UTC build time in ISO 8601 format
+below each article title. Edit the articles in the wiki as usual.

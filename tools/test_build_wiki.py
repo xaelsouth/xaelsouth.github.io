@@ -1,5 +1,7 @@
+import re
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -40,25 +42,47 @@ class WikiNavigationTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (wiki / "Other.md").write_text(
-                "# Other\n\n<!-- tags: C++, C#, linux, Linux -->\n\nNo subheadings.\n",
+                "# Other\n\n<!-- read-time: 5 minutes -->\n"
+                "<!-- tags: C++, C#, linux, Linux -->\n\nNo subheadings.\n",
                 encoding="utf-8",
             )
 
             build_wiki.main(wiki, out, "owner/repo")
 
             page = PageParser()
-            page.feed((out / "index.html").read_text(encoding="utf-8"))
+            home_html = (out / "index.html").read_text(encoding="utf-8")
+            page.feed(home_html)
             self.assertEqual(page.heading_ids, ["first", "child", "first_1"])
             self.assertEqual(
                 page.nav_links,
                 ["tags.html", "index.html", "Other.html", "#first", "#child", "#first_1"],
             )
+            home_timestamp = re.search(
+                r'Page generated: <time datetime="([^"]+)">([^<]+)</time>',
+                home_html,
+            )
+            self.assertIsNotNone(home_timestamp)
+            self.assertEqual(home_timestamp[1], home_timestamp[2])
+            generated_at = datetime.fromisoformat(home_timestamp[1])
+            self.assertEqual(generated_at.utcoffset(), timedelta(0))
             other_html = (out / "Other.html").read_text(encoding="utf-8")
             other = PageParser()
             other.feed(other_html)
             self.assertEqual(other.nav_links, ["tags.html", "index.html", "Other.html"])
             self.assertNotIn("On this page", other_html)
             self.assertNotIn("tags:", other_html)
+            self.assertNotIn("read-time:", other_html)
+            self.assertIn(
+                '</h1><p class="page-meta">Estimated reading time: 5 minutes '
+                f'&middot; Page generated: <time datetime="{home_timestamp[1]}">'
+                f"{home_timestamp[1]}</time></p>",
+                other_html,
+            )
+            self.assertEqual(generated_at.tzinfo, timezone.utc)
+            self.assertIn(
+                '<meta name="description" content="Other No subheadings.',
+                other_html,
+            )
             self.assertIn("https://github.com/owner/repo/wiki/Other", other_html)
             tags_html = (out / "tags.html").read_text(encoding="utf-8")
             self.assertIn('id="c"', tags_html)
