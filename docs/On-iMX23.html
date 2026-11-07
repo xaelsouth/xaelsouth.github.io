@@ -105,12 +105,12 @@ results are from the initial SD-card boot, before the later driver work.</p>
 <tr>
 <td>Olinuxino Mini</td>
 <td>microSD, USB host, RTC/watchdog and GPIO</td>
-<td>Audio and TV-out did not work initially; JTAG, PWM, I2C, DCP and LRADC were untested</td>
+<td>Audio and TV-out did not work initially<br>JTAG, PWM, I2C, DCP and LRADC were untested</td>
 </tr>
 <tr>
 <td>iMX233 EVK</td>
-<td>SD, USB and NAND boot; LCD with DRM/KMS, UART, patched SPI Ethernet, I2C EEPROM and LRADC buttons</td>
-<td>Audio and TV-out did not work initially; SPI Ethernet shares pins with SD; 8k NAND pages were untested</td>
+<td>SD, USB and NAND boot<br>LCD with DRM/KMS, UART, SPI Ethernet, I2C EEPROM and LRADC buttons<br>Audio and TV-out</td>
+<td>SPI Ethernet shares pins with SD<br>8k NAND pages were untested</td>
 </tr>
 </tbody>
 </table>
@@ -1397,7 +1397,7 @@ awk -v raw=$raw -v offset=$offset -v scale=$scale 'BEGIN { printf &quot;Temperat
 Temperature is 28.93 degC
 </code></pre>
 <h4 id="dcp-crypto">DCP crypto</h4>
-<p>The <a href="https://www.nxp.com/docs/en/reference-manual/IMX23RM.pdf">i.MX23 Applications Processor Reference Manual</a> says boot images are encrypted and include an authenticating hash; the image must be encrypted and authenticated with the appropriate key set before the BootROM can load and boot it.</p>
+<p>The <a href="https://www.nxp.com/docs/en/reference-manual/IMX23RM.pdf">reference manual</a> says boot images are encrypted and include an authenticating hash; the image must be encrypted and authenticated with the appropriate key set before the BootROM can load and boot it.</p>
 <p>This is why kobs-ng needs DCP crypto support when the device's OTP crypto key is set. The manual notes that the customer-programmed OTP AES key is never visible to software; DCP can use that key for AES operations. kobs-ng must use those operations to process the encrypted bootstream key/header material and its authentication data without reading the OTP key itself. Despite not having OTP crrypto key set, I wanted to make the DCP crypto hardware usable with kobs-ng. Again, you don't this if you use standard all-zeros OTP crypto key or pass the crypto key via command line.</p>
 <p>Luckily, <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a> provides required patches. I 'married' them to work with Linux kernel 6.6 I have been using:</p>
 <ol>
