@@ -145,6 +145,45 @@ class WikiNavigationTest(unittest.TestCase):
             self.assertIn("No article tags have been added yet.", (out / "tags.html").read_text())
             self.assertNotIn(build_wiki.BASE_URL + "Other.html", build_wiki.sitemap_dates(out / "sitemap.xml"))
 
+    def test_tag_only_edits_update_tags_without_regenerating_article(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wiki = Path(tmp) / "wiki"
+            out = Path(tmp) / "out"
+            wiki.mkdir()
+            article = wiki / "Home.md"
+
+            def build(day):
+                with patch.object(build_wiki, "datetime", wraps=datetime) as clock:
+                    clock.now.return_value = datetime(2026, 11, day, tzinfo=timezone.utc)
+                    build_wiki.main(wiki, out, "owner/repo")
+
+            article.write_text("# Home\n\nHome content.\n", encoding="utf-8")
+            build(1)
+            original_article = (out / "index.html").read_bytes()
+
+            for day, tag in [(2, "Linux"), (3, "Embedded")]:
+                article.write_text(
+                    f"# Home\n\n<!-- tags: {tag} -->\n\nHome content.\n", encoding="utf-8"
+                )
+                build(day)
+                self.assertEqual((out / "index.html").read_bytes(), original_article)
+                tags_html = (out / "tags.html").read_text(encoding="utf-8")
+                self.assertIn(f'aria-label="{tag}: 1 article"', tags_html)
+                dates = build_wiki.sitemap_dates(out / "sitemap.xml")
+                self.assertEqual(dates[build_wiki.BASE_URL], "2026-11-01")
+                self.assertEqual(dates[build_wiki.BASE_URL + "tags.html"], f"2026-11-0{day}")
+
+            article.write_text("# Home\n\nHome content.\n", encoding="utf-8")
+            build(4)
+            self.assertEqual((out / "index.html").read_bytes(), original_article)
+            self.assertIn(
+                "No article tags have been added yet.",
+                (out / "tags.html").read_text(encoding="utf-8"),
+            )
+            dates = build_wiki.sitemap_dates(out / "sitemap.xml")
+            self.assertEqual(dates[build_wiki.BASE_URL], "2026-11-01")
+            self.assertEqual(dates[build_wiki.BASE_URL + "tags.html"], "2026-11-04")
+
 
 if __name__ == "__main__":
     unittest.main()

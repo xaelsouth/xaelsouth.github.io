@@ -205,8 +205,8 @@ def main(wiki, out, repo):
             continue
         name = src.stem
         raw_source = src.read_text(encoding="utf-8")
-        source_hash = hashlib.sha256(raw_source.encode("utf-8")).hexdigest()
         tags, source = extract_tags(raw_source)
+        source_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
         read_time, source = extract_read_time(source)
         body, toc = render(source)
         description = first_text(body)

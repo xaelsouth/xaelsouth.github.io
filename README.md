@@ -22,5 +22,6 @@ Both comments are consumed by the site generator and do not appear in the
 published article. The generator displays its UTC build time in ISO 8601 format
 below each article title. It preserves unchanged pages and their timestamps;
 changes to shared navigation or layout update all affected pages. The tags page
-and sitemap are updated when needed, and removed wiki pages are removed from
-the site. Edit the articles in the wiki as usual.
+and sitemap are updated when needed. Changing only an article's tags updates the
+tags page without changing the article's timestamp. Removed wiki pages are
+removed from the site. Edit the articles in the wiki as usual.
