@@ -110,7 +110,7 @@ results are from the initial SD-card boot, before the later driver work.</p>
 <tr>
 <td>iMX233 EVK</td>
 <td>SD, USB and NAND boot; LCD with DRM/KMS, UART, patched SPI Ethernet, I2C EEPROM and LRADC buttons</td>
-<td>SPI Ethernet shares pins with SD; 8k NAND pages were not tested</td>
+<td>Audio and TV-out did not work initially; SPI Ethernet shares pins with SD; 8k NAND pages were untested</td>
 </tr>
 </tbody>
 </table>
@@ -557,7 +557,7 @@ USB recovery path before changing NAND.</p>
 <h3 id="2k-vs-4k-nand-page-size">2k vs. 4k NAND page size</h3>
 <p>Using nandsim to get kobs-ng working was helpful, but the ultimate proof that iMX23 can boot from NAND is, obviously, iMX23 booting from NAND. And, as always, it did not work with the iMX23 EVK at first. BootROM was showing 0x80508003 (Unable to find LDLB), see <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/54683/1/IMX23_ROM_Error_Codes.pdf">iMX23 ROM error codes</a>. At least it could find the NCB.</p>
 <p>While kobs-ng did not work with the iMX23 EVK, it <em>did</em> work fine when programming a custom board with NAND page size = 2k and erase block size = 128k. To recap, the iMX23 EVK has Samsung NAND flash with page size = 4k and erase block size = 512k.</p>
-<p>After trying multiple weird things and reading the reference manual for another three half-days, I finally found the answer - 64. BootROM's search-count setting is expressed in 64-page blocks. Meanwhile, kobs-ng uses an erase block as its stride: the Samsung NAND has 512k/4k = 128 pages per erase block. The OTP fuse controls how many 64-page blocks BootROM skips:
+<p>After trying multiple weird things and reading the reference manual for another three half-days, I finally found the answer. No, not 42 yet 64. BootROM's search-count setting is expressed in 64-page blocks. Meanwhile, kobs-ng uses an erase block as its stride: the Samsung NAND has 512k/4k = 128 pages per erase block. The OTP fuse controls how many 64-page blocks BootROM skips:
 <img width="942" height="64" alt="Screenshot from 2026-07-19 13-16-22" src="https://github.com/user-attachments/assets/0a609c01-ad2e-4419-a80d-3b183bc03075" /></p>
 <p>The reference-manual excerpt describes <code>BOOT_SEARCH_COUNT</code> as the number of
 64-page blocks skipped when searching; its default value of 0 means four such
@@ -1278,7 +1278,7 @@ Volume ID 0, size 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (24
 [  319.170000] UBIFS (ubi3:0): reserved for root: 2135070 bytes (2085 KiB)
 [  319.170000] UBIFS (ubi3:0): media format: w5/r0 (latest is w5/r0), UUID CFC4F740-B048-4097-B48C-C5D3D2FF1B96, small LPT model
 </code></pre>
-<p>Writing and reading files under <code>/mnt</code> worked fine until the next reboot. When I tried to mount the same partition again, I ran into too many bit-flip errors: "ubi0: fixable bit-flip detected at PEB XYZ".</p>
+<p>Writing and reading files under <code>/mnt</code> worked fine until the next reboot. When I tried to mount the same partition again, I ran in too many bit-flip errors: "ubi0: fixable bit-flip detected at PEB XYZ".</p>
 <h5 id="gpmi-driver-bugs">GPMI driver bugs</h5>
 <p>Even though there were many bit-flip errors, UBIFS could heal the partition by reading and rewriting its data. However, the NAND flash could not have been worn out. There must have been something wrong. What do you do when you don't know what to try next? Right, you 'consult' the internet. The closest I could find was this post: <a href="https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot">https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot</a>. Not so helpful, though, since it offered no solution or even a tip on how to narrow the issue down.</p>
 <p>What do you do when searching for a bug in an unfamiliar codebase? The answer is: activate all log messages and increase the log level from debug to something more visible! That's what I did in <em>gpmi-nand.c</em>, and at some point <code>No fingerprint found</code> caught my eye. While reading <em>gpmi-nand.c</em>, I stumbled upon an iMX23-specific feature called NAND transcribing, which is required for the BCH hardware used for error correction. NAND transcribing means that bad block marks usually stored in the first OOB byte are transcribed (copied) into the first page bytes (at position 0). Once this is done, the "STMP" fingerprint is written at byte position 12 in the first NAND flash page to prevent transcribing again and corrupting data, which appears as bit-flips at the next boot. BTW, the "STMP" fingerprint is included in the header of a bootstream written by <a href="#kobs-ng">kobs-ng</a>:</p>
@@ -1397,10 +1397,12 @@ awk -v raw=$raw -v offset=$offset -v scale=$scale 'BEGIN { printf &quot;Temperat
 Temperature is 28.93 degC
 </code></pre>
 <h4 id="dcp-crypto">DCP crypto</h4>
-<p>Since I wanted the EVK booting from NAND, I needed to make the DCP crypto hardware usable with the kobs-ng tool. Luckily, I found all the required patches:</p>
+<p>The <a href="https://www.nxp.com/docs/en/reference-manual/IMX23RM.pdf">i.MX23 Applications Processor Reference Manual</a> says boot images are encrypted and include an authenticating hash; the image must be encrypted and authenticated with the appropriate key set before the BootROM can load and boot it.</p>
+<p>This is why kobs-ng needs DCP crypto support when the device's OTP crypto key is set. The manual notes that the customer-programmed OTP AES key is never visible to software; DCP can use that key for AES operations. kobs-ng must use those operations to process the encrypted bootstream key/header material and its authentication data without reading the OTP key itself. Despite not having OTP crrypto key set, I wanted to make the DCP crypto hardware usable with kobs-ng. Again, you don't this if you use standard all-zeros OTP crypto key or pass the crypto key via command line.</p>
+<p>Luckily, <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a> provides required patches. I 'married' them to work with Linux kernel 6.6 I have been using:</p>
 <ol>
 <li><a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch</a></li>
-<li><a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a> credited to <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a>. I 'married' the first patch with usbarmory's one and adapted them slightly to Linux kernel 6.6.y.</li>
+<li><a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a>.</li>
 </ol>
 <h4 id="sound-driver">Sound driver</h4>
 <p>Sound drivers for old Linux kernels (&lt;4.3) can be found here <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> and here <a href="https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5">https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5</a>. Due to a massive rework of the ALSA framework in the Linux kernel around 4.4, these patches cannot be reapplied as-is.</p>
