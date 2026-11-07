@@ -120,17 +120,6 @@ produces <code>libmbus.a</code> and the public interface is in <code>mbus.h</cod
 accepts wired long frames and CRC-stripped wireless telegrams, supports
 selected encrypted transport modes, and lets applications register up to 32
 manufacturer-specific decoders.</p>
-<p>An application can install a process-global key retrieval callback with
-<code>mbus_set_key_provider</code>. The callback receives the available application and
-link identities and the synchronization state (which can be unknown), and
-returns up to 16 AES keys. It is called after successful header parsing when
-no explicit keys were passed, including for plaintext telegrams. Explicit keys
-take precedence; failed explicit keys do not trigger the callback. The
-standalone CLI does not install a provider: this hook is for applications
-embedding the library. Provider registration and decoding with a provider are
-single-threaded. See the
-<a href="https://github.com/xaelsouth/mbusdec/blob/master/examples/key_provider.c">key provider example</a>
-for registration and removal.</p>
 <p>For raw wireless frames with link CRCs, select
 <code>MBUS_WIRELESS_FORMAT_A</code> or <code>MBUS_WIRELESS_FORMAT_B</code> when decoding or
 inspecting headers. The caller must know the format; the library does not
@@ -140,6 +129,73 @@ the radio preamble and synchronization word. Alternatively,
 CRC-stripped representation accepted as <code>MBUS_WIRELESS</code>. CRC validation
 happens before header parsing and key retrieval. These raw formats are
 available through the library API, not the rtl-wmbus CLI stream.</p>
+<h3 id="retrieving-keys-with-a-hook">Retrieving keys with a hook</h3>
+<p>An application embedding the library can install a key retrieval callback
+with <code>mbus_set_key_provider</code>. The provider and its context are process-global,
+not per decoder or telegram. Install it during application initialization
+before decoding; it can also be replaced or removed between serialized calls.
+The standalone CLI does not install a provider: use <code>--keys</code> there instead.</p>
+<p>The callback is called once after successful header parsing when
+<code>mbus_decode</code> is used, or when <code>mbus_decode_with_keys</code> is given a zero key
+count. It is also called for plaintext and manufacturer-specific telegrams.
+Nonzero explicit keys take precedence: if they fail, the provider is not
+called as a fallback. For raw Format A/B input, CRC validation happens before
+the provider is called.</p>
+<p>The provider receives application-layer and link-layer identities, either of
+which can be <code>NULL</code>, and <code>MBUS_SYNCHRONOUS</code>, <code>MBUS_ASYNCHRONOUS</code> or
+<code>MBUS_SYNC_UNKNOWN</code>. It writes up to <code>capacity</code> AES-128 keys to the supplied
+buffer and sets <code>*count</code>; keys are tried in the returned order.
+<code>MBUS_OK</code> with a zero count means no matching key. A non-OK status aborts
+decoding; the callback may set <code>*error</code> to a static diagnostic if <code>error</code> is
+not <code>NULL</code>. Identity and key-buffer pointers are valid only during the call.</p>
+<p>For example, this callback uses its context to return a test key for one
+link-layer identity:</p>
+<pre><code class="language-c">#include &quot;mbus.h&quot;
+#include &lt;string.h&gt;
+
+static mbus_status lookup_key(const mbus_identity *application,
+                              const mbus_identity *link,
+                              mbus_synchronization synchronization,
+                              mbus_key *keys, size_t capacity, size_t *count,
+                              void *context, const char **error)
+{
+    const mbus_key *test_key = context;
+    const uint8_t expected_id[] = {0x44, 0x55, 0x22, 0x33};
+    *count = 0;
+    if (application == NULL &amp;&amp; link != NULL &amp;&amp;
+        link-&gt;manufacturer == MANUF_CODE(&quot;SEN&quot;) &amp;&amp;
+        memcmp(link-&gt;identification, expected_id, sizeof(expected_id)) == 0 &amp;&amp;
+        link-&gt;version == 0x99 &amp;&amp; link-&gt;medium == MEDIUM_WATER &amp;&amp;
+        synchronization == MBUS_ASYNCHRONOUS) {
+        if (capacity &lt; 1) {
+            if (error != NULL) *error = &quot;key buffer is too small&quot;;
+            return MBUS_LIMIT;
+        }
+        keys[0] = *test_key;
+        *count = 1;
+    }
+    return MBUS_OK;
+}
+</code></pre>
+<p>The application installs it with <code>mbus_set_key_provider(lookup_key,
+&amp;test_key)</code>, checks the returned status, and then calls <code>mbus_decode</code> for
+each telegram. Remove it with <code>mbus_set_key_provider(NULL, NULL)</code> when done,
+also checking the status. The caller owns the context and must keep it alive
+until the provider is removed or replaced. Registration and decoding with a
+provider are single-threaded; do not change the provider or recursively
+decode from inside the callback.</p>
+<p>The complete
+<a href="https://github.com/xaelsouth/mbusdec/blob/master/examples/key_provider.c">key provider example</a>
+installs this callback, decodes a test telegram and removes the provider. From
+the mbusdec directory, after building with the default bundled AES backend:</p>
+<pre><code class="language-sh">cc -std=c11 -Iinclude examples/key_provider.c build/libmbus.a -lm -o key_provider
+./key_provider
+</code></pre>
+<p>The example uses a public test key and prints
+<code>Decrypted telegram; profile values: 3</code>. For an OpenSSL build, add <code>-lcrypto</code>
+after the archive. Replace the lookup with your own key store or service and
+never hard-code production keys. Key retrieval and successful decryption do
+not authenticate a telegram.</p>
 <p>See the
 <a href="https://github.com/xaelsouth/mbusdec#library">library documentation and examples</a>
 for the API, supported records and limitations.</p>
