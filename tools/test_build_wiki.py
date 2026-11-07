@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+from unittest.mock import patch
 
 import build_wiki
 
@@ -91,6 +92,58 @@ class WikiNavigationTest(unittest.TestCase):
             self.assertIn("linux <span class=\"tag-count\">(1)</span>", tags_html)
             self.assertIn("Other", tags_html)
             self.assertIn("tags.html", (out / "sitemap.xml").read_text(encoding="utf-8"))
+
+    def test_incremental_generation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wiki = Path(tmp) / "wiki"
+            out = Path(tmp) / "out"
+            wiki.mkdir()
+            home = wiki / "Home.md"
+            other = wiki / "Other.md"
+            sidebar = wiki / "_Sidebar.md"
+            home.write_text("# Home\n\nHome content.\n", encoding="utf-8")
+            other.write_text(
+                "# Other\n\n<!-- tags: Linux -->\n\nOther content.\n", encoding="utf-8"
+            )
+            sidebar.write_text("[Home](Home)\n", encoding="utf-8")
+
+            def build(day):
+                with patch.object(build_wiki, "datetime", wraps=datetime) as clock:
+                    clock.now.return_value = datetime(2026, 11, day, tzinfo=timezone.utc)
+                    build_wiki.main(wiki, out, "owner/repo")
+
+            build(1)
+            original = {
+                path.name: path.read_bytes()
+                for path in out.iterdir() if path.is_file()
+            }
+            build(2)
+            self.assertEqual(original, {
+                path.name: path.read_bytes()
+                for path in out.iterdir() if path.is_file()
+            })
+
+            other.write_text(other.read_text(encoding="utf-8") + "\nChanged.\n", encoding="utf-8")
+            build(3)
+            self.assertEqual((out / "index.html").read_bytes(), original["index.html"])
+            self.assertEqual((out / "tags.html").read_bytes(), original["tags.html"])
+            self.assertIn("2026-11-03T00:00:00+00:00", (out / "Other.html").read_text())
+            dates = build_wiki.sitemap_dates(out / "sitemap.xml")
+            self.assertEqual(dates[build_wiki.BASE_URL], "2026-11-01")
+            self.assertEqual(dates[build_wiki.BASE_URL + "Other.html"], "2026-11-03")
+            self.assertEqual(dates[build_wiki.BASE_URL + "tags.html"], "2026-11-01")
+
+            sidebar.write_text("[Other](Other)\n", encoding="utf-8")
+            build(4)
+            self.assertIn("2026-11-04T00:00:00+00:00", (out / "index.html").read_text())
+            self.assertIn("2026-11-04T00:00:00+00:00", (out / "Other.html").read_text())
+            self.assertIn('href="Other.html"', (out / "tags.html").read_text())
+
+            other.unlink()
+            build(5)
+            self.assertFalse((out / "Other.html").exists())
+            self.assertIn("No article tags have been added yet.", (out / "tags.html").read_text())
+            self.assertNotIn(build_wiki.BASE_URL + "Other.html", build_wiki.sitemap_dates(out / "sitemap.xml"))
 
 
 if __name__ == "__main__":

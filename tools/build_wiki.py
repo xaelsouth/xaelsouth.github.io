@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Render the GitHub wiki (Markdown) into static, crawlable HTML."""
 import html
+import hashlib
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
+from xml.etree import ElementTree
 
 import markdown
 
@@ -51,6 +53,8 @@ td,th{{border:1px solid #d0d7de;padding:.3em .6em}}img{{max-width:100%}}
 LINK = re.compile(r'href="([^"#?:]+)((?:#[^"]*)?)"')
 TAGS = re.compile(r"<!--\s*tags:\s*(.*?)\s*-->\s*", re.I | re.S)
 READ_TIME = re.compile(r"<!--\s*read-time:\s*(.*?)\s*-->\s*", re.I | re.S)
+GENERATED_TIME = re.compile(r'Page generated: <time datetime="[^"]+">[^<]+</time>')
+SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
 
 
 def extract_tags(text):
@@ -158,22 +162,51 @@ def first_text(body):
     return html.escape(" ".join(plain.split())[:160], quote=True)
 
 
+def write_if_changed(path, content, ignore_generated_time=False):
+    if path.exists():
+        old = path.read_text(encoding="utf-8")
+        if ignore_generated_time:
+            old = GENERATED_TIME.sub("Page generated: <time></time>", old, count=1)
+            comparable = GENERATED_TIME.sub("Page generated: <time></time>", content, count=1)
+        else:
+            comparable = content
+        if old == comparable:
+            return False
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def sitemap_dates(path):
+    if not path.exists():
+        return {}
+    root = ElementTree.parse(path).getroot()
+    dates = {}
+    for entry in root.findall(f"{SITEMAP_NS}url"):
+        loc = entry.findtext(f"{SITEMAP_NS}loc")
+        lastmod = entry.findtext(f"{SITEMAP_NS}lastmod")
+        if loc and lastmod:
+            dates[loc] = lastmod
+    return dates
+
+
 def main(wiki, out, repo):
     wiki, out = Path(wiki), Path(out)
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     out.mkdir(parents=True, exist_ok=True)
-    for old in out.glob("*.html"):
-        old.unlink()
+    previous_dates = sitemap_dates(out / "sitemap.xml")
     side = wiki / "_Sidebar.md"
     nav = '<p><a href="tags.html">Browse tags</a></p>'
     nav += render(side.read_text(encoding="utf-8"))[0] if side.exists() else ""
     names = []
+    changed = {}
     articles = []
     for src in sorted(wiki.glob("*.md")):
         if src.name.startswith("_"):
             continue
         name = src.stem
-        tags, source = extract_tags(src.read_text(encoding="utf-8"))
+        raw_source = src.read_text(encoding="utf-8")
+        source_hash = hashlib.sha256(raw_source.encode("utf-8")).hexdigest()
+        tags, source = extract_tags(raw_source)
         read_time, source = extract_read_time(source)
         body, toc = render(source)
         description = first_text(body)
@@ -213,7 +246,8 @@ def main(wiki, out, repo):
                 '">Edit this page in the wiki</a></small></p>'
             ),
         )
-        (out / f"{slug}.html").write_text(page, encoding="utf-8")
+        page = page.replace("<head>\n", f"<head>\n<!-- wiki-source-sha256: {source_hash} -->\n", 1)
+        changed[slug] = write_if_changed(out / f"{slug}.html", page, ignore_generated_time=True)
         names.append(slug)
         if tags:
             articles.append((slug, title, tags))
@@ -230,21 +264,25 @@ def main(wiki, out, repo):
             "</small></p>"
         ),
     )
-    (out / "tags.html").write_text(tags_page, encoding="utf-8")
+    changed["tags"] = write_if_changed(out / "tags.html", tags_page)
     names.append("tags")
-    today = date.today().isoformat()
-    urls = "".join(
-        f"<url><loc>{BASE_URL}{'' if s == 'index' else quote(s) + '.html'}</loc>"
-        f"<lastmod>{today}</lastmod></url>\n"
-        for s in names
-    )
-    (out / "sitemap.xml").write_text(
+    for old in out.glob("*.html"):
+        if old.stem not in names:
+            old.unlink()
+    today = generated_at[:10]
+    urls = []
+    for slug in names:
+        url = BASE_URL + ("" if slug == "index" else quote(slug) + ".html")
+        lastmod = today if changed[slug] else previous_dates.get(url, today)
+        urls.append(f"<url><loc>{url}</loc><lastmod>{lastmod}</lastmod></url>\n")
+    write_if_changed(
+        out / "sitemap.xml",
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n'
+        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{"".join(urls)}</urlset>\n',
     )
-    (out / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {BASE_URL}sitemap.xml\n")
+    write_if_changed(out / "robots.txt", f"User-agent: *\nAllow: /\nSitemap: {BASE_URL}sitemap.xml\n")
     (out / ".nojekyll").touch()
-    print(f"Rendered {len(names)} pages")
+    print(f"Updated {sum(changed.values())} of {len(names)} pages")
 
 
 if __name__ == "__main__":
