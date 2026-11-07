@@ -38,12 +38,14 @@ certified. Check the project README for supported formats and limitations.</p>
 <h2 id="building">Building</h2>
 <p>The following assumes that both repositories have been checked out side by
 side, and that rtl-wmbus's RTL-SDR dependencies are installed:</p>
-<pre><code class="language-sh">cd rtl-wmbus
+<pre><code class="language-sh"># Go into rtl-wmbus folder
+cd rtl-wmbus
 make release
-cd ../mbusdec
+
+# Go into mbusdec folder
+cd mbusdec
 cmake -S . -B build
 cmake --build build
-cd ..
 </code></pre>
 <p>mbusdec needs CMake, a C11 compiler and the math library. Its default AES
 backend is bundled; OpenSSL is an optional alternative. See the project README
@@ -54,6 +56,7 @@ for build options, tests and platform-specific instructions.</p>
   &lt; ./rtl-wmbus/samples/rtlsdr_868.950M_1M6_samples2.cu8 \
   | ./mbusdec/build/mbusdec
 </code></pre>
+<p>Pipe mbusdec into <code>jq</code> for well-formatted JSON document.</p>
 <p>Each output line is a JSON object, either a decoded telegram or an error. For
 example, a decoded telegram contains identities and records where these are
 available. <code>decode_status</code> describes the decoder outcome; it is distinct from
