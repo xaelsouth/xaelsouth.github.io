@@ -155,8 +155,8 @@ def main(wiki, out, repo):
     for old in out.glob("*.html"):
         old.unlink()
     side = wiki / "_Sidebar.md"
-    nav = render(side.read_text(encoding="utf-8"))[0] if side.exists() else ""
-    nav += '<p><a href="tags.html">Browse tags</a></p>'
+    nav = '<p><a href="tags.html">Browse tags</a></p>'
+    nav += render(side.read_text(encoding="utf-8"))[0] if side.exists() else ""
     names = []
     articles = []
     for src in sorted(wiki.glob("*.md")):

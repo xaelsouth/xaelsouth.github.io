@@ -51,12 +51,12 @@ class WikiNavigationTest(unittest.TestCase):
             self.assertEqual(page.heading_ids, ["first", "child", "first_1"])
             self.assertEqual(
                 page.nav_links,
-                ["index.html", "Other.html", "tags.html", "#first", "#child", "#first_1"],
+                ["tags.html", "index.html", "Other.html", "#first", "#child", "#first_1"],
             )
             other_html = (out / "Other.html").read_text(encoding="utf-8")
             other = PageParser()
             other.feed(other_html)
-            self.assertEqual(other.nav_links, ["index.html", "Other.html", "tags.html"])
+            self.assertEqual(other.nav_links, ["tags.html", "index.html", "Other.html"])
             self.assertNotIn("On this page", other_html)
             self.assertNotIn("tags:", other_html)
             self.assertIn("https://github.com/owner/repo/wiki/Other", other_html)
