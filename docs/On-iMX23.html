@@ -135,18 +135,22 @@ results are from the initial SD-card boot, before the later driver work.</p>
 <h2 id="booting-via-usb">Booting via USB</h2>
 <p>According to the <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a>, the iMX23 ROM loads a so-called bootstream from the boot media configured by DIP switches or OTP fuses. It uses this to initialise the hardware and finally boot Linux. A bootstream is usually split into multiple bootlets: one initialises the power supply, the next initialises clocks and RAM, and a third optionally creates ATAGS for the Linux kernel command line. Even the Linux kernel can be considered a bootlet. Since a picture is worth a thousand words, here it is, borrowed from <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">i.MX23 Linux BSP User Guide</a>:
 <img width="1004" height="454" alt="Screenshot from 2026-07-17 20-16-25" src="https://github.com/user-attachments/assets/5caf03dd-238f-46db-825d-9a67526fe8a9" /></p>
-<p>Bootlets can be found in the Buildroot tree at <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/boot/mxs-bootlets">boot/mxs-bootlets</a>. When using mxs-bootlets, the boot sequence is as follows:
-1. power_prep for power supply initialisation
-2. boot_prep for clock and RAM initialisation
-3. Optional Boot (proper), which can load a device tree, an initial ramdisk if applicable, and the Linux kernel from boot media
-4. The Linux kernel with an initial ramdisk and a device tree. Its command line may be populated by U-Boot, specified as bootargs in the device tree, or compiled into the kernel statically.</p>
+<p>Bootlets can be found in the Buildroot tree at <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/boot/mxs-bootlets">boot/mxs-bootlets</a>. When using mxs-bootlets, the boot sequence is as follows:</p>
+<ol>
+<li>power_prep for power supply initialisation</li>
+<li>boot_prep for clock and RAM initialisation</li>
+<li>Optional Boot (proper), which can load a device tree, an initial ramdisk if applicable, and the Linux kernel from boot media</li>
+<li>The Linux kernel with an initial ramdisk and a device tree. Its command line may be populated by U-Boot, specified as bootargs in the device tree, or compiled into the kernel statically.</li>
+</ol>
 <blockquote>
 <p>[!NOTE]
 Using mxs-bootlets makes sense if long-proven bootlets for power and RAM initialisation have to be preserved.</p>
 </blockquote>
-<p>Although mxs-bootlets work with the iMX233 EVK board, using them does not make much sense here since U-Boot replaces the bootlets with its own implementation. In that case, the bootstream includes exactly two bootlets. For example, when booting from SD card:
-1. U-Boot SPL for power and RAM initialisation
-2. U-Boot (proper) to boot Linux</p>
+<p>Although mxs-bootlets work with the iMX233 EVK board, using them does not make much sense here since U-Boot replaces the bootlets with its own implementation. In that case, the bootstream includes exactly two bootlets. For example, when booting from SD card:</p>
+<ol>
+<li>U-Boot SPL for power and RAM initialisation</li>
+<li>U-Boot (proper) to boot Linux</li>
+</ol>
 <p>Now enough about bootstreams and their alternatives. How to use them for USB boot?</p>
 <p>Windows users might consider <a href="https://github.com/nxp-imx/sb_loader/releases/download/1.0/sb_loader.exe">sb_loader</a>. I don't know how or whether it works, sorry.</p>
 <p>Lucky Linux users like me can use <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/imx-sb-loader">sb_loader</a>, which is compiled as a host utility. While creating the imx-sb-loader package, I took the liberty of including the <a href="https://raw.githubusercontent.com/Rockbox/rockbox/refs/heads/master/utils/imxtools/sbtools/sbloader.c">source file</a> in the package. BTW, sbloader.c was developed in 2010, 16 years ago at the time of writing, and still works - very impressive!</p>
@@ -520,26 +524,32 @@ buildroot login:
 <a href="#kobs-ng">kobs-ng</a>, together with the NAND and DCP driver work described in
 <a href="#hardware-and-driver-findings">Hardware and driver findings</a>. Keep a working
 USB recovery path before changing NAND.</p>
-<p>There are two thoughts I would eagerly like to share about using NAND in embedded devices:
-1. Using <em>raw</em> NAND must definitely be banned from the embedded world.
-2. Using <em>raw</em> NAND might be allowed only in very low-cost consumer devices whose lifetime is often limited to a couple of years.</p>
+<p>There are two thoughts I would eagerly like to share about using NAND in embedded devices:</p>
+<ol>
+<li>Using <em>raw</em> NAND must definitely be banned from the embedded world.</li>
+<li>Using <em>raw</em> NAND might be allowed only in very low-cost consumer devices whose lifetime is often limited to a couple of years.</li>
+</ol>
 <p>When using NAND in their devices, developers are required to maintain <em>ALL</em> related tools specific to their chosen SoC for years, even after the SoC platform has become officially obsolete! Industrial-grade devices are often developed for a service period of ten years, which, at the suggestion of marketing and other very important departments, will be prolonged by another ten almost <em>always</em>.</p>
 <p>NAND tools must be SoC-specific because each SoC integrates its own NAND Flash Controller (NFC), e.g. the GPMI NAND controller for the iMX series. These controllers determine how data is physically accessed and protected with error correction codes, making generic tools incompatible across different hardware platforms.</p>
-<p>What else adds to the complexity?
-* proprietary hardware interfaces: every SoC manufacturer designs their NFC differently. Tools must utilize hardware-specific commands to communicate with the chip.
-* vendor-specific ECC: raw NAND flash requires error correction code (ECC) to prevent data corruption. Because different SoCs use different ECC algorithms, the tools must encode/decode data exactly as the target SoC expects it.
-* bad block management (BBM): SoCs employ proprietary software or hardware schemes to map around physically defective memory blocks. Generic tools cannot inherently parse these custom bad block tables.
-* BootROM &amp; security protocols: SoCs use secure boot chains with custom encryption keys, headers, and authentication methods. Tools must package firmware images precisely according to these SoC-enforced constraints =&gt; iMX23 bootstream.
-* flashing &amp; recovery mechanisms: recovery modes for unbootable boards rely on SoC-specific ROM codes. Tools use these vendor-developed USB/UART protocols to bypass broken operating systems and push fresh bootloaders.</p>
+<p>What else adds to the complexity?</p>
+<ul>
+<li>proprietary hardware interfaces: every SoC manufacturer designs their NFC differently. Tools must utilize hardware-specific commands to communicate with the chip.</li>
+<li>vendor-specific ECC: raw NAND flash requires error correction code (ECC) to prevent data corruption. Because different SoCs use different ECC algorithms, the tools must encode/decode data exactly as the target SoC expects it.</li>
+<li>bad block management (BBM): SoCs employ proprietary software or hardware schemes to map around physically defective memory blocks. Generic tools cannot inherently parse these custom bad block tables.</li>
+<li>BootROM &amp; security protocols: SoCs use secure boot chains with custom encryption keys, headers, and authentication methods. Tools must package firmware images precisely according to these SoC-enforced constraints =&gt; iMX23 bootstream.</li>
+<li>flashing &amp; recovery mechanisms: recovery modes for unbootable boards rely on SoC-specific ROM codes. Tools use these vendor-developed USB/UART protocols to bypass broken operating systems and push fresh bootloaders.</li>
+</ul>
 <p>That's probably why all sensible developers would rather use eMMC with standard tools! (In the meantime, I'm gonna get a t-shirt with the quote "I love eMMC!" on it.)</p>
 <h3 id="kobs-ng">kobs-ng</h3>
 <p>When configured to boot from NAND (DIP switch 0100), the iMX23 searches for a bootstream in a specific format, written to NAND flash using a specific pattern. This pattern is intended to let the SoC boot even if a copy of the bootstream is affected by a bad block.</p>
 <p><a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/freescale-imx/imx-kobs">kobs-ng</a> is the tool of choice when a bootstream must be written to NAND. The only thing is - it did not work with iMX23 and the 6.6.y Linux kernel.</p>
-<p>Long story short: I used the <a href="http://www.linux-mtd.infradead.org/faq/nand.html#L_nand_nandsim">NAND simulator</a> to debug kobs-ng and craft a patch. The patch can be found here <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch</a>. What does it include?
-* iMX23/iMX28 SoC detection
-* bugfixes
-* removed annoying warnings
-* DCP crypto hardware can be used to program devices with crypto keys set</p>
+<p>Long story short: I used the <a href="http://www.linux-mtd.infradead.org/faq/nand.html#L_nand_nandsim">NAND simulator</a> to debug kobs-ng and craft a patch. The patch can be found here <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch</a>. What does it include?</p>
+<ul>
+<li>iMX23/iMX28 SoC detection</li>
+<li>bugfixes</li>
+<li>removed annoying warnings</li>
+<li>DCP crypto hardware can be used to program devices with crypto keys set</li>
+</ul>
 <h3 id="2k-vs-4k-nand-page-size">2k vs. 4k NAND page size</h3>
 <p>Using nandsim to get kobs-ng working was helpful, but the ultimate proof that iMX23 can boot from NAND is, obviously, iMX23 booting from NAND. And, as always, it did not work with the iMX23 EVK at first. BootROM was showing 0x80508003 (Unable to find LDLB), see <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/54683/1/IMX23_ROM_Error_Codes.pdf">iMX23 ROM error codes</a>. At least it could find the NCB.</p>
 <p>While kobs-ng did not work with the iMX23 EVK, it <em>did</em> work fine when programming a custom board with NAND page size = 2k and erase block size = 128k. To recap, the iMX23 EVK has Samsung NAND flash with page size = 4k and erase block size = 512k.</p>
@@ -1220,10 +1230,12 @@ If you fix a bug in the Linux kernel, consider whether the fix also applies to U
 <h5 id="ubifs-and-mlc-nand">UBIFS and MLC NAND</h5>
 <p>Having fixed the wrong erase block size, I tried to create a UBIFS partition and immediately failed with <code>ubi: refuse attaching mtd1 - MLC NAND is not supported</code>. Well, MLC NAND is <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b5094b7f135be">unsupported</a> by UBIFS.</p>
 <p>Searching the internet revealed great news from 2020: <a href="https://www.phoronix.com/news/Linux-5.8-NAND-MLC-SLC-Emulate">SLC NAND can be emulated in software</a>! Interestingly, skimming through the U-Boot source code I found no sign of SLC emulation. I might have looked in the wrong place, though.</p>
-<p>As always, nothing goes without patches:
-1. We need to patch Samsung NAND chip driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch</a>
-2. We need to patch NAND SoC driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch</a>
-3. We need to tell MTD Linux driver about slc-mode being used with a MTD partition: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch</a></p>
+<p>As always, nothing goes without patches:</p>
+<ol>
+<li>We need to patch Samsung NAND chip driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch</a></li>
+<li>We need to patch NAND SoC driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch</a></li>
+<li>We need to tell MTD Linux driver about slc-mode being used with a MTD partition: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch</a></li>
+</ol>
 <p>I wonder why 1. and 2. are required. To me it looks like some sort of a boundary violation between different software layers. Nevertheless, rootfs1 on the /dev/mtd3 partition, which is flagged in the device tree with 'slc-mode', can be attached:</p>
 <blockquote>
 <p>[!WARNING]
@@ -1381,9 +1393,11 @@ awk -v raw=$raw -v offset=$offset -v scale=$scale 'BEGIN { printf &quot;Temperat
 Temperature is 28.93 degC
 </code></pre>
 <h4 id="dcp-crypto">DCP crypto</h4>
-<p>Since I wanted the EVK booting from NAND, I needed to make the DCP crypto hardware usable with the kobs-ng tool. Luckily, I found all the required patches:
-1. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch</a>
-2. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a> credited to <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a>. I 'married' the first patch with usbarmory's one and adapted them slightly to Linux kernel 6.6.y.</p>
+<p>Since I wanted the EVK booting from NAND, I needed to make the DCP crypto hardware usable with the kobs-ng tool. Luckily, I found all the required patches:</p>
+<ol>
+<li><a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch</a></li>
+<li><a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a> credited to <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a>. I 'married' the first patch with usbarmory's one and adapted them slightly to Linux kernel 6.6.y.</li>
+</ol>
 <h4 id="sound-driver">Sound driver</h4>
 <p>Sound drivers for old Linux kernels (&lt;4.3) can be found here <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> and here <a href="https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5">https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5</a>. Due to a massive rework of the ALSA framework in the Linux kernel around 4.4, these patches cannot be reapplied as-is.</p>
 <p>I found enough information about the ALSA system in the <a href="https://bootlin.com/doc/training/audio/audio-slides.pdf">Audio with embedded Linux training</a> to rework the <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> patches for Linux kernel 6.6.y. Among the biggest changes was the machine driver, which had to make way for the <a href="https://www.kernel.org/doc/Documentation/devicetree/bindings/sound/simple-card.txt">simple audio card</a>. Many obsolete structures and function calls also had to be replaced with newer ones, but the rest of the driver remained almost unchanged.</p>
