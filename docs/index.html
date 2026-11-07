@@ -8,11 +8,17 @@
 <link rel="canonical" href="https://xaelsouth.github.io/">
 <style>
 body{font:16px/1.6 system-ui,sans-serif;margin:0;display:flex;flex-wrap:wrap}
-nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa}
+nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa;
+    position:sticky;top:0;max-height:100vh;overflow-y:auto;box-sizing:border-box}
+nav ul{padding-left:1.2em}
 main{flex:1 1 30em;max-width:60em;padding:1em 2em}
 pre{background:#f6f8fa;padding:1em;overflow:auto}
 code{background:#f6f8fa}table{border-collapse:collapse}
 td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
+@media(max-width:700px){
+  nav{flex-basis:100%;position:static;max-height:none}
+  main{min-width:0;padding:1em}
+}
 </style>
 </head>
 <body>

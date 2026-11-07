@@ -8,11 +8,17 @@
 <link rel="canonical" href="https://xaelsouth.github.io/On-mbusdec.html">
 <style>
 body{font:16px/1.6 system-ui,sans-serif;margin:0;display:flex;flex-wrap:wrap}
-nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa}
+nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa;
+    position:sticky;top:0;max-height:100vh;overflow-y:auto;box-sizing:border-box}
+nav ul{padding-left:1.2em}
 main{flex:1 1 30em;max-width:60em;padding:1em 2em}
 pre{background:#f6f8fa;padding:1em;overflow:auto}
 code{background:#f6f8fa}table{border-collapse:collapse}
 td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
+@media(max-width:700px){
+  nav{flex-basis:100%;position:static;max-height:none}
+  main{min-width:0;padding:1em}
+}
 </style>
 </head>
 <body>
@@ -22,7 +28,19 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 <li><a href="On-iMX23.html">On iMX23</a></li>
 <li><a href="On-fbDoom.html">On fbDoom</a></li>
 <li><a href="On-mbusdec.html">On mbusdec</a></li>
-</ul></nav>
+</ul><section aria-label="On this page"><h3>On this page</h3><div class="toc">
+<ul>
+<li><a href="#building">Building</a></li>
+<li><a href="#decoding-a-recording">Decoding a recording</a></li>
+<li><a href="#keys-and-address-filters">Keys and address filters</a></li>
+<li><a href="#using-the-library">Using the library</a><ul>
+<li><a href="#retrieving-keys-with-a-hook">Retrieving keys with a hook</a></li>
+</ul>
+</li>
+<li><a href="#further-reading">Further reading</a></li>
+</ul>
+</div>
+</section></nav>
 <main><h1 id="on-mbusdec-and-rtl-wmbus">On mbusdec and rtl-wmbus</h1>
 <p><a href="https://github.com/xaelsouth/rtl-wmbus">rtl-wmbus</a> receives Wireless M-Bus
 signals from an SDR and turns them into telegrams. What if you want to inspect

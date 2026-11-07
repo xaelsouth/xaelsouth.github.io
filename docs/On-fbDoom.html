@@ -8,11 +8,17 @@
 <link rel="canonical" href="https://xaelsouth.github.io/On-fbDoom.html">
 <style>
 body{font:16px/1.6 system-ui,sans-serif;margin:0;display:flex;flex-wrap:wrap}
-nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa}
+nav{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa;
+    position:sticky;top:0;max-height:100vh;overflow-y:auto;box-sizing:border-box}
+nav ul{padding-left:1.2em}
 main{flex:1 1 30em;max-width:60em;padding:1em 2em}
 pre{background:#f6f8fa;padding:1em;overflow:auto}
 code{background:#f6f8fa}table{border-collapse:collapse}
 td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
+@media(max-width:700px){
+  nav{flex-basis:100%;position:static;max-height:none}
+  main{min-width:0;padding:1em}
+}
 </style>
 </head>
 <body>
@@ -22,7 +28,19 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 <li><a href="On-iMX23.html">On iMX23</a></li>
 <li><a href="On-fbDoom.html">On fbDoom</a></li>
 <li><a href="On-mbusdec.html">On mbusdec</a></li>
-</ul></nav>
+</ul><section aria-label="On this page"><h3>On this page</h3><div class="toc">
+<ul>
+<li><a href="#where-it-comes-from">Where it comes from</a></li>
+<li><a href="#building-and-running">Building and running</a></li>
+<li><a href="#high-resolution-rendering">High-resolution rendering</a></li>
+<li><a href="#making-use-of-the-imx23-pxp">Making use of the i.MX23 PXP</a></li>
+<li><a href="#sound">Sound</a></li>
+<li><a href="#rendering-options">Rendering options</a></li>
+<li><a href="#vertical-view-freelook">Vertical view (freelook)</a></li>
+<li><a href="#further-reading">Further reading</a></li>
+</ul>
+</div>
+</section></nav>
 <main><h1 id="on-fbdoom">On fbDOOM</h1>
 <p><a href="https://github.com/xaelsouth/fbDOOM">fbDOOM</a> is an adaptation of the original DOOM engine for devices where a conventional desktop graphics stack may not be available. Instead of depending on SDL or OpenGL, its Linux build can render directly to the framebuffer and read input from Linux event devices. There is also an X11 software backend for desktop testing.</p>
 <p>The project is especially interesting as a way to bring a familiar game to small and unusual displays. Its README lists plain Linux framebuffer systems, a Siglent SSA 3021X Spectrum Analyzer, Frosted OS, Kinco Green Series GL070HE and MT4434TE HMIs, and NXP i.MX23 boards among its targets.</p>
