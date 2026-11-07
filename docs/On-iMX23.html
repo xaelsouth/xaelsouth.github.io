@@ -1395,7 +1395,7 @@ Simple mixer control 'Right ADC Mux',0
 <p>Of course, having patches is not quite the same as having a picture on the TV. Composite output has been confirmed using a composite-to-HDMI converter and the <a href="https://github.com/xaelsouth/fbdoom">xaelsouth port of fbDoom</a>. But fbDoom is another story and deserves an article of its own. </p>
 <blockquote>
 <p>[!NOTE]
-Not being a Linux driver developer or a graphics stack specialist and not knowing NTSC or PAL specifics, I don't want to know how long I would have spent doing that myself: days, weeks, months, maybe a year?.. So, hell yeah - I was impressed too!</p>
+Not being a Linux driver developer or a graphics stack specialist and not knowing NTSC or PAL specifics, I don't want to know how much time I would have spent doing that myself: days, weeks, months, maybe a year?.. So, hell yeah - I was impressed too!</p>
 </blockquote>
 <p>Below I attached AI's own work description.</p>
 <p>The Buildroot branch now includes patches for composite output. The old Linux 2.6.31-era TV encoder support was forward-ported and adapted to the current DRM/KMS driver. The encoder register programming also refers to the i.MX23 reference manual and the older <a href="https://github.com/xobs/linux-2.6.28.mx233-falconwing/blob/master/arch/arm/mach-stmp3xxx/tvenc.c">Freescale BSP tvenc driver</a>.</p>
