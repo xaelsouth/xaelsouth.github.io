@@ -19,55 +19,77 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 <nav></nav>
 <main><h1 id="on-imx23">On iMX23</h1>
 <p>Why bother with such rusty stuff at all? Just for fun. Kind of attached to fixing broken or incomplete things. Perhaps two and a half people might find this helpful too.</p>
-<h1 id="boards">Boards</h1>
-<p>Recently, whilst tidying up my stuff after moving into a new house, I found these two boards: <a href="https://www.olimex.com/Products/OLinuXino/iMX233/iMX233-OLinuXino-MINI/open-source-hardware">Olinuxino Mini</a> and <a href="https://www.nxp.com/design/design-center/development-boards-and-designs/IMX23EVK">iMX233 EVK</a> boards. Both are built with iMX233 SoC which comes originally from Freescale what had later become NXP. (I should have said 'came' since iMX233 SoC is officially obsolete and discontinued since 2019.)</p>
+<h2 id="hardware-and-tested-configuration">Hardware and tested configuration</h2>
+<p>Recently, whilst tidying up my stuff after moving into a new house, I found two boards: the <a href="https://www.olimex.com/Products/OLinuXino/iMX233/iMX233-OLinuXino-MINI/open-source-hardware">Olinuxino Mini</a> and the <a href="https://www.nxp.com/design/design-center/development-boards-and-designs/IMX23EVK">iMX233 EVK</a>. Both are built around the <a href="https://www.nxp.com/products/i.MX233">iMX233 SoC</a>, originally from Freescale, which later became part of NXP. The SoC has been officially obsolete for many years.</p>
 <blockquote>
 <p>[!TIP]
-For less patient readers: here is my <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">Buildroot for imx23</a> branch which includes all patches I made in attempt to provide better support for the iMX23 platform. I hope it might be interesting for someone who is considering or counting out options to upgrade a fleet of iMX23 based devices. </p>
+For less patient readers: here is my <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">Buildroot for imx23</a> branch, which includes all the patches I made in an attempt to provide better support for the iMX23 platform. I hope it might be interesting to someone considering options to upgrade a fleet of iMX23-based devices.</p>
 </blockquote>
-<h1 id="hardware-drivers-tools">Hardware, drivers, tools</h1>
-<p>Initial search on the internet brought me to <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">OpenWRT iMX233 Olinuxino</a> page. The first impression was less than great. I would have expected mature SoC platform, but looking at what is under 'Working' it appears that almost only USB works?.. Considering 'last worked with' - everything else might or might not work. To jump ahead: I just wanted to play a bit with a very cool <a href="https://directfb2.github.io">DirectFB2</a> project and LCD attached to iMX233 EVK to see what DirectFB2 could be useful for, but... Well, it's open source, so ~~save~~ help yourselves!</p>
-<p>Next stop to check for the board support was <a href="https://buildroot.org">Buildroot</a>. Luckily enough Buildroot includes configuration files for both boards. Having enough experience with Buildroot I forked it into <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">https://github.com/xaelsouth/buildroot/tree/feature/imx23</a>, cloned and then kicked off the build:</p>
-<pre><code class="language-shell">make O=output/imx233_olinuxino olimex_imx233_olinuxino_defconfig &amp;&amp; cd output/imx233_olinuxino &amp;&amp; make -j$(nproc)
-make O=output/imx233_evk imx23evk_defconfig &amp;&amp; cd output/imx233_evk &amp;&amp; make -j$(nproc)
-</code></pre>
-<p>Waiting :hourglass: :coffee: :hourglass: :coffee: :hourglass: ...</p>
-<p>Few coffee cups later I was presented with sdcard.img - one for each board - ready to write to SD card. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/readme.txt">iMX233 readme</a> and <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/olimex/imx233_olinuxino/readme.txt">Olinuxino readme</a> will explain that better than I would ever be able to do. The only difference is that Olinuxino uses micro SD card vs. iMX233 EVK wants SD card.</p>
-<h2 id="olinuxino-mini">Olinuxino Mini</h2>
-<p>According to the <a href="https://github.com/OLIMEX/OLINUXINO/blob/master/HARDWARE/iMX233-OLinuXino-Mini/1.%20Latest%20hardware%20revision/iMX233-OLINUXINO-MINI%20hardware%20revision%20E/iMX233-OLINUXINO-MINI_Rev_E.pdf">schematics</a> Olinuxino Mini does not exactly have a lot of hardware, what could have been tested after booting from uSD card:</p>
+<p>The experiments below use the Buildroot branch above; the captured EVK logs
+show Linux 6.6.143 and U-Boot 2024.04. Here is a quick summary; the Olinuxino
+results are from the initial SD-card boot, before the later driver work.</p>
+<table>
+<thead>
+<tr>
+<th>Board</th>
+<th>Working or demonstrated</th>
+<th>Limitations and untested features</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Olinuxino Mini</td>
+<td>microSD, USB host, RTC/watchdog and GPIO</td>
+<td>Audio and TV-out did not work initially; JTAG, PWM, I2C, DCP and LRADC were untested</td>
+</tr>
+<tr>
+<td>iMX233 EVK</td>
+<td>SD, USB and NAND boot; LCD with DRM/KMS, UART, patched SPI Ethernet, I2C EEPROM and LRADC buttons</td>
+<td>SPI Ethernet shares pins with SD; 8k NAND pages were not tested</td>
+</tr>
+</tbody>
+</table>
+<p>The details below distinguish initial findings from later results with patches.</p>
+<h3 id="olinuxino-mini">Olinuxino Mini</h3>
+<p>According to the <a href="https://github.com/OLIMEX/OLINUXINO/blob/master/HARDWARE/iMX233-OLinuXino-Mini/1.%20Latest%20hardware%20revision/iMX233-OLINUXINO-MINI%20hardware%20revision%20E/iMX233-OLINUXINO-MINI_Rev_E.pdf">schematics</a>, the Olinuxino Mini does not exactly have a lot of hardware to test after booting from a microSD card. My initial results were:</p>
 <ul>
-<li>works: uSD card/which is obviously SPI, USB host, RTC with watchdog, GPIO</li>
+<li>works: microSD card (via SPI), USB host, RTC with watchdog, GPIO</li>
 <li>does not work: line in, line out, composite video/TV-out</li>
 <li>untested: JTAG, PWM, I2C, DCP (crypto hardware), LRADC (analog to digital converter)</li>
 </ul>
-<h2 id="imx233-evk">iMX233 EVK</h2>
-<p>In terms of hardware iMX233 EVK is way more interesting, just look at the <a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">schematics (SPF_77066.pdf)</a>! The board is fitted with 8-bit NAND, UART, ENC28J60 SPI Ethernet, SD card, array of buttons, LCD, I2C devices (ADC, accelerometer, 24LC128 EEPROM), two PWM controlled LEDs. 128MB(!) RAM is quite cool too! Maybe I could run sort of a web kiosk thing with that board... :yum:, but back to reality.</p>
-<p>After booting from SD card the LCD will immediately light up, which means that LCD and PWM used as LCD backlight work. Check.</p>
-<p>Sad, but SPI Ethernet is multiplexed with uSD card and can work only if booted from USB or NAND.</p>
-<p>Application UART works, so at least we could <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">SLIP</a> at no less than 115200 bps or approx. 10KB/s :unamused:. Check.</p>
-<p>While trying to test accelerometer and EEPROM sitting on I2C bus, I quickly realised that using SD card for the development with plugging and unplugging really sucks. Therefore I had considered ordering of <a href="https://linux-automation.com/en/products/usb-sd-mux-fast.html">USB-SD-Mux FAST</a> and even its price, approx. 120€, didn't go down the wrong pipe, but I would have to wait for several days, or maybe even weeks, until the package arrives from Europe! Anyway, right after spending 120€ I came up with the idea of trying USB boot. Unfortunately, due to the old hardware and not very well maintained drivers and tools I ran into a whole bunch of bugs and issues. Below I will be describing how to solve them.</p>
-<h1 id="booting-via-usb">Booting via USB</h1>
-<p>According to the <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a>, iMX23 ROM loads so called bootstream from via DIP switch or OTP fuses configured boot media to perform hardware initialisation and to finally boot Linux. Bootstream is usually split into multiple bootlets: one will initialise power supply, next one clocks and RAM, third one optionally creates ATAGS for the Linux kernel command line. Even the Linux kernel will be considered as bootlet. Since a picture is worth thousand words, here it is as good as taken from <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">i.MX23 Linux BSP User Guide</a>: 
+<h3 id="imx233-evk">iMX233 EVK</h3>
+<p>In terms of hardware, the iMX233 EVK is much more interesting; just look at the <a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">schematics (SPF_77066.pdf)</a>! The board is fitted with 8-bit NAND, UART, ENC28J60 SPI Ethernet, SD card slot, an array of buttons, an LCD, I2C devices (ADC, accelerometer, 24LC128 EEPROM) and two PWM-controlled LEDs. 128MB(!) RAM is quite cool too! Maybe I could run some sort of web kiosk thing with that board... 😋, but back to reality.</p>
+<p>After booting from SD card, the LCD lights up immediately, which means that the LCD and the PWM used for its backlight work. Check.</p>
+<p>Sad, but SPI Ethernet is multiplexed with the SD card interface and can work only if booted from USB or NAND.</p>
+<p>The application UART works, so at least we could use <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">SLIP</a> at no less than 115200 bps or approx. 10KB/s 😒. Anyway, check.</p>
+<p>While trying to test the accelerometer and EEPROM on the I2C bus, I quickly realised that constantly plugging and unplugging SD card during development really sucks. So I considered ordering a <a href="https://linux-automation.com/en/products/usb-sd-mux-fast.html">USB-SD-Mux FAST</a>. Even its price, approx. 120€, didn't put me off, but I would have to wait for several days, or maybe even weeks, until the package arrived from Europe! Anyway, right after spending 120€ I came up with the idea of trying USB boot. Unfortunately, due to the old hardware and not very well maintained drivers and tools, I ran into a whole bunch of bugs and issues. Below I am going to describe how I tackled them.</p>
+<h2 id="getting-started-buildroot-and-sd-boot">Getting started: Buildroot and SD boot</h2>
+<p>An initial search on the internet brought me to the <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">OpenWRT iMX233 Olinuxino</a> page. The first impression was less than great. I would have expected a mature SoC platform, but looking at what is under <a href="https://openwrt.org/toh/olimex/imx233-olinuxino#working">'Working'</a>, it appears that almost only USB works?.. Considering 'last worked with 3.18, driver needs to be fwdported' - everything else might or might not work. To jump ahead: I just wanted to play a bit with the very cool <a href="https://directfb2.github.io">DirectFB2</a> project and the LCD attached to the iMX233 EVK to see what DirectFB2 could be useful for, but... Well, it's open source, so ~~save~~ help yourselves!</p>
+<p>The next stop for board support was <a href="https://buildroot.org">Buildroot</a>. Luckily enough, Buildroot includes configuration files for both boards. Having enough experience with Buildroot, I forked it at <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">https://github.com/xaelsouth/buildroot/tree/feature/imx23</a>, cloned it and then kicked off the builds from the Buildroot checkout:</p>
+<pre><code class="language-shell">(make O=output/imx233_olinuxino olimex_imx233_olinuxino_defconfig &amp;&amp; cd output/imx233_olinuxino &amp;&amp; make -j$(nproc))
+(make O=output/imx233_evk imx23evk_defconfig &amp;&amp; cd output/imx233_evk &amp;&amp; make -j$(nproc))
+</code></pre>
+<p>Waiting ⌛ ☕ ⌛ ☕ ⌛ ...</p>
+<p>A few coffee cups later I was presented with an sdcard.img - one for each board - ready to write to SD card. The <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/readme.txt">iMX233 readme</a> and <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/olimex/imx233_olinuxino/readme.txt">Olinuxino readme</a> explain that better than I ever could. The Olinuxino uses a microSD card, whereas the iMX233 EVK wants a full-size SD card.</p>
+<h2 id="booting-via-usb">Booting via USB</h2>
+<p>According to the <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a>, the iMX23 ROM loads a so-called bootstream from the boot media configured by DIP switches or OTP fuses. It uses this to initialise the hardware and finally boot Linux. A bootstream is usually split into multiple bootlets: one initialises the power supply, the next initialises clocks and RAM, and a third optionally creates ATAGS for the Linux kernel command line. Even the Linux kernel can be considered a bootlet. Since a picture is worth a thousand words, here it is, borrowed from <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">i.MX23 Linux BSP User Guide</a>:
 <img width="1004" height="454" alt="Screenshot from 2026-07-17 20-16-25" src="https://github.com/user-attachments/assets/5caf03dd-238f-46db-825d-9a67526fe8a9" /></p>
-<p>Bootlets can be found in the Buildroot tree <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/boot/mxs-bootlets">boot/mxs-bootlets</a>. When using mxs-bootlets the boot sequence is as follows:
+<p>Bootlets can be found in the Buildroot tree at <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/boot/mxs-bootlets">boot/mxs-bootlets</a>. When using mxs-bootlets, the boot sequence is as follows:
 1. power_prep for power supply initialisation
 2. boot_prep for clock and RAM initialisation
-3. optional Boot (proper). Can be used to load device tree, initial ramdisk - if applicable, and Linux kernel from any media and finally boot into
-4. Linux kernel with included initial ramdisk and attached device tree. Linux kernel command line may:
-    1. populated by U-Boot
-    2. or written out as bootargs in the device tree
-    3. or can be compiled into the Linux kernel statically</p>
+3. Optional Boot (proper), which can load a device tree, an initial ramdisk if applicable, and the Linux kernel from boot media
+4. The Linux kernel with an initial ramdisk and a device tree. Its command line may be populated by U-Boot, specified as bootargs in the device tree, or compiled into the kernel statically.</p>
 <blockquote>
 <p>[!NOTE]
-Using mxs-bootlets makes sense if long-term proven old bootlets for power and RAM initialisation have to be preserved.</p>
+Using mxs-bootlets makes sense if long-proven bootlets for power and RAM initialisation have to be preserved.</p>
 </blockquote>
-<p>Although mxs-bootlets work with iMX233 EVK board, using them does not make much sense since U-Boot replaces bootlets with its own implementation. In that case, the bootstream will include exactly two bootlets. For example, bootlets being used to boot from SD card:
+<p>Although mxs-bootlets work with the iMX233 EVK board, using them does not make much sense here since U-Boot replaces the bootlets with its own implementation. In that case, the bootstream includes exactly two bootlets. For example, when booting from SD card:
 1. U-Boot SPL for power and RAM initialisation
 2. U-Boot (proper) to boot Linux</p>
 <p>Now enough about bootstreams and their alternatives. How to use them for USB boot?</p>
-<p>Windows users might be considering <a href="https://github.com/nxp-imx/sb_loader/releases/download/1.0/sb_loader.exe">sb_loader</a>. Don't know how or whether it works, sorry.</p>
-<p>Lucky Linux users like me can use <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/imx-sb-loader">sb_loader</a>, which will be compiled as a host utility. While creating imx-sb-loader package I took the liberty of including the <a href="https://raw.githubusercontent.com/Rockbox/rockbox/refs/heads/master/utils/imxtools/sbtools/sbloader.c">source file</a> in the package. BTW, sbloader.c has been developed in 2010, 16 years ago at the time of writing, and still works - very impressive!</p>
-<p>Having sb_loader I was still missing the bootstream (something with .sb file extension) in the folder with all build artefacts, usually output/images. Turns out, <strong>BR2_TARGET_UBOOT_FORMAT_SB</strong> must be enabled and u-boot.sb will be copied along with other binaries. Having DIP switch set to 0000 and debug serial (115200 8N1) connected using USB to RS232 serial cable, let's boot u-boot.sb:</p>
+<p>Windows users might consider <a href="https://github.com/nxp-imx/sb_loader/releases/download/1.0/sb_loader.exe">sb_loader</a>. I don't know how or whether it works, sorry.</p>
+<p>Lucky Linux users like me can use <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/imx-sb-loader">sb_loader</a>, which is compiled as a host utility. While creating the imx-sb-loader package, I took the liberty of including the <a href="https://raw.githubusercontent.com/Rockbox/rockbox/refs/heads/master/utils/imxtools/sbtools/sbloader.c">source file</a> in the package. BTW, sbloader.c was developed in 2010, 16 years ago at the time of writing, and still works - very impressive!</p>
+<p>With sb_loader ready, I was still missing the bootstream (that vulgar file with an .sb extension) from the build artefacts folder, usually output/images. Turns out, <strong>BR2_TARGET_UBOOT_FORMAT_SB</strong> must be enabled for u-boot.sb to be copied along with the other binaries. With the DIP switch set to 0000 and the debug serial port (115200 8N1) connected using a USB-to-RS232 serial cable, let's boot u-boot.sb:</p>
 <pre><code class="language-shell"># Host PC
 sudo output/imx233_evk/host/bin/sb_loader -d -p hid output/imx233_evk/images/u-boot.sb
 Device: 066f:3780 @ 1.76
@@ -76,9 +98,9 @@ Cannot probe transfer size, using default.
 Transfer size: 1024
 Status: Unknown Error
 </code></pre>
-<p>That did not go well. Also, only <code>HTLC</code> appears in the debug console. Nothing else happens. <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a> reveals that <strong>L</strong> is LOAD and <strong>C</strong> is CALL. BootROM loads and calls U-Boot SPL and this gets stuck there for unknown reason, whilst the same code works when booting from SD card :confused:. Nah, at least something works! (Reading this one might recognize how low my expectation to find something working actually are.)</p>
-<p>... here I was digging for three halfdays ...</p>
-<p>It turns out that something in U-Boot SPL must have gone wrong with the RAM size detection. After applying this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/uboot/2024.04/0008-no-ramsize-detection.patch">patch</a> I can finally see U-Boot prompt, yay!</p>
+<p>That did not go well. Also, only <code>HTLC</code> appears on the debug console. Nothing else happens. The <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a> reveals that <strong>L</strong> is LOAD and <strong>C</strong> is CALL. BootROM loads and calls U-Boot SPL, which gets stuck there for an unknown reason, whilst the same code works when booting from SD card 😕. Nah, at least something works! (Reading this, one might recognise how low my expectations of finding something working already are.)</p>
+<p>... here I was digging for three half-days ...</p>
+<p>It turns out that something in U-Boot SPL must have gone wrong with the RAM size detection. After applying this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/uboot/2024.04/0008-no-ramsize-detection.patch">patch</a> I can finally see the U-Boot prompt, yay!</p>
 <pre><code class="language-console">HTLCLJ
 
 U-Boot 2024.04 (Jul 10 2026 - 19:13:50 +1200)
@@ -96,13 +118,13 @@ Loading Environment from nowhere... OK
 In:    serial
 Out:   serial
 Err:   serial
-Hit any key to stop autoboot:  0 
+Hit any key to stop autoboot:  0
 =&gt;
 </code></pre>
-<p>The disadvantage of the patch mentioned above is that the RAM size must be correct hard-coded as <strong>PHYS_SDRAM_1_SIZE</strong>.</p>
-<p><code>boot</code> command would now boot Linux from SD card, which is not exactly what I wanted, since Ethernet would still be blocked by SD card. Also, at this point I can't use NAND to load Linux kernel to boot because MXS NAND driver for iMX23 is sort of unsupported. Bump.</p>
-<p>Another bump I got when I wanted to enable ENC28J60 driver in the U-Boot. I always remembered U-Boot having this driver, but it has been removed long time ago due to its incompatibility with device tree and poor quality. And I did not want bringing it back. Maybe later. Maybe. Later. Means never.   </p>
-<p>The solution to 'where-to-get-Linux-kernel-to-load' problem was to create a bootstream with preloaded <a href="https://docs.u-boot.org/en/v2024.04/usage/fit/howto.html">ITB file</a> to include Linux, initial ramdisk and device tree. I used following bootstream template, <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb tool</a> and <strong>post-build.sh</strong> script for replacing %WHATEVER% with full path of associated files:</p>
+<p>The disadvantage of the patch mentioned above is that the correct RAM size must be hard-coded as <strong>PHYS_SDRAM_1_SIZE</strong>.</p>
+<p>The <code>boot</code> command would now boot Linux from SD card, which is not exactly what I wanted, since Ethernet would still be blocked by the SD card. Also, at this point I couldn't use NAND to load the Linux kernel because the MXS NAND driver for iMX23 was sort of unsupported. Bump.</p>
+<p>Another bump came when I wanted to enable the ENC28J60 driver in U-Boot. I remembered U-Boot having this driver (yes, I'm that old), but it had been removed a long time ago due to its incompatibility with device tree and poor quality. And I did not want to bring it back. Maybe later. Maybe. Later. Means never.</p>
+<p>The solution to the 'where-to-get-the-Linux-kernel-to-load' problem was to create a bootstream with a preloaded <a href="https://docs.u-boot.org/en/v2024.04/usage/fit/howto.html">ITB file</a> containing Linux, an initial ramdisk and a device tree. I used the following bootstream template, the <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb tool</a> and a <strong>post-build.sh</strong> script to replace %WHATEVER% with the full paths of the associated files:</p>
 <pre><code class="language-text">options {
     driveTag = 0x00;
     flags = 0x01;
@@ -127,7 +149,7 @@ section (0) {
 </code></pre>
 <blockquote>
 <p>[!NOTE]
-<a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb</a> package must have been activated as a host package. Don't know the reason, but despite being among packages it was not included in package/Config.host.in. </p>
+The <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb</a> package had to be activated as a host package. I don't know why, but despite being among the packages it was not included in package/Config.host.in.</p>
 </blockquote>
 <p>Now Linux can boot nicely:</p>
 <details>
@@ -151,7 +173,7 @@ Loading Environment from nowhere... OK
 In:    serial
 Out:   serial
 Err:   serial
-Hit any key to stop autoboot:  0 
+Hit any key to stop autoboot:  0
 MMC: no card present
 MMC: no card present
 Try booting from ITB at 0x46000000
@@ -425,386 +447,63 @@ Starting network: OK
 Starting crond: OK
 
 Welcome to Buildroot
-buildroot login: 
+buildroot login:
 </code></pre>
 
 
 </details>
 
-<p>SPI Ethernet is still blocked by SD card what needs to be fixed in the device tree. The line <code>enc28j60 spi0.0: Ethernet driver 1.02 loaded</code> in the log above is a bit misleading as it only tells about the driver being loaded, not the hardware being usable.</p>
-<h1 id="u-boot">U-Boot</h1>
-<h2 id="nand-driver">NAND driver</h2>
-<p>An observant reader might have noticed <code>NAND:  4096 MiB</code> in the logs above. Well, those logs had been captured after Linux MXS GPMI driver was ported to U-Boot. Between the previous sentence and the following log with NAND bad blocks were gone several halfdays. Very rewarding log, though: </p>
-<pre><code class="language-console">=&gt; nand info
-
-Device 0: nand0, sector size 512 KiB
-  Page size         4096 b
-  OOB size           218 b
-  Erase size      524288 b
-  ecc strength        16 bits
-  ecc step size      512 b
-  subpagesize       4096 b
-  options       0x00004208
-  bbt options   0x00010000
-
-=&gt; nand erase.chip -y 
-
-NAND erase.chip: device 0 whole chip
-Skipping bad block at  0x04480000                                          
-Skipping bad block at  0xa1500000                                          
-Skipping bad block at  0xab180000                                          
-Skipping bad block at  0xae280000                                          
-Skipping bad block at  0xd6c00000                                          
-Skipping bad block at  0xda000000                                          
-Skipping bad block at  0xe3700000                                          
-Erasing at 0xfff80000 -- 100% complete.
-OK
-=&gt; 
-</code></pre>
-<p>U-Boot patches related to NAND subsystem can be found under <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04</a>. It is a bit long series of patches which, apart from patching NAND support into, resolves a few compile issues and also provides a workaround for <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363760">Erratum 2847</a> thankfully taken from Linux kernel sources.</p>
-<h2 id="otp-fuses">OTP fuses</h2>
-<p>Apparently there is <a href="https://github.com/nxp-imx/mfgtools">MfgTool</a> for burning OTP fuses. However, I never tried using MfgTool since I discovered that U-Boot can do this for me. U-Boot requires a little patch and can write and read fuses just fine: <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch</a>:</p>
-<pre><code class="language-console">=&gt; fuse read 0 0
-Reading bank 0:
-
-Word 0x00000000: 00049f01
-</code></pre>
-<p>No idea why bank 0 word 0, which is for customer purpose, is preprogrammed. Maybe Freescale as the board manufacturer was its own 'customer'.</p>
-<h1 id="linux">Linux</h1>
-<p>Since we got Linux console, it's time to check what's with hardware drivers.</p>
-<h2 id="otp-fuses_1">OTP fuses</h2>
-<p>OTP fuses can be accessed as Non-Volatile Memory (NVMEM):</p>
-<pre><code class="language-console">#hexdump /sys/devices/soc0/80000000.apb/80000000.apbh/8002c000.efuse/mxs-ocotp0/nvmem 
-0000000 0000 0000 0000 0000 0000 0000 0000 0000
-*
-0000020 9f01 0004 0000 0000 0000 0000 0000 0000
-0000030 1893 0000 0000 0000 0000 0000 0000 0000
-0000040 0000 0000 0000 0000 0000 0000 0000 0000
-*
-0000100 0000 0009 0000 0000 0000 0000 0000 0000
-0000110 0000 2000 0000 0000 0000 0000 0000 0000
-0000120 0140 4088 0000 0000 0000 0000 0000 0000
-0000130 0001 0000 0000 0000 0000 0000 0000 0000
-0000140 0a3b 0000 0000 0000 0000 0000 0000 0000
-0000150 da7e 0002 0000 0000 0000 0000 0000 0000
-0000160 ca3b 911a 0000 0000 0000 0000 0000 0000
-0000170 0000 0000 0000 0000 0000 0000 0000 0000
-*
-00001a0 0008 0020 0000 0000 0000 0000 0000 0000
-00001b0 0000 0000 0000 0000 0000 0000 0000 0000
-*
-0000210 0101 0000 0000 0000 0000 0000 0000 0000
-0000220
-</code></pre>
-<h2 id="usb">USB</h2>
-<p>EVK hardware must rewired a bit to test USB host. Since  USB driver has been successfully tested with Olinuxino Mini I skipped it.</p>
-<h2 id="nand-driver_1">NAND driver</h2>
-<p>In the device tree I have created multiple MTD partitions: boot, u-boot-env, rootfs and data.</p>
-<p>boostream will be programmed in the 'boot' partition. Other partitions could be used as their names suggest.</p>
-<h3 id="samsung-nand-erase-block-size-detection-bugs">Samsung NAND erase block size detection bugs</h3>
-<p>I ran <code>mtdinfo -a</code> and got 512MB erase size for Samsung K9LBG08U0D NAND flash. Even if the technological advancement in microelectronics is happenning rapidly I would not expect 512MB. (Just looked up :roll_eyes:: 96MB erase block size for QLC NAND). Searching on the internet lit up a similar issue <a href="https://archlinuxarm.org/forum/viewtopic.php?f=33&amp;t=14511">https://archlinuxarm.org/forum/viewtopic.php?f=33&amp;t=14511</a>.</p>
-<p>Every other NAND flash characteristic was printed as the data sheet suggested with most important among them: page size = 4k and oob size = 218 bytes.</p>
-<p>Where the bug could be hiding? To answer this question we need to know, roughly, how Linux NAND subsystem is organized:
-| Linux NAND subsystem | Source file(s) |
-| --- | --- | 
-| Filesystem driver | SquashFS, UBI/UBIFS |
-| MTD driver | <em>drivers/mtd/mtd*.c</em> |
-| NAND base layer | <em>drivers/mtd/nand/raw/nand_base.c</em> and its consorts |
-| NAND SoC driver | <em>drivers/mtd/nand/raw/gpmi-nand/gpmi_nand.c</em> |
-| NAND chip driver | <em>drivers/mtd/nand/raw/nand_samsung.c</em> |</p>
-<p>NAND chip driver is responsible for the NAND chip identification meaning the page size, oob size and erase block size will be determined by that driver. After spending a few hours on reading <em>nand_samsung.c</em> I finally spotted something interesting:</p>
-<pre><code class="language-c">        /* Get blocksize */
-        extid &gt;&gt;= 2;
-        memorg-&gt;pages_per_eraseblock = (128 * 1024) &lt;&lt;
-                           (((extid &gt;&gt; 1) &amp; 0x04) |
-                        (extid &amp; 0x03)) /
-                           memorg-&gt;pagesize;
-        mtd-&gt;erasesize = (128 * 1024) &lt;&lt;
-                 (((extid &gt;&gt; 1) &amp; 0x04) | (extid &amp; 0x03));
-</code></pre>
-<p>Such a mean thing are those missing round brackets! Very typical bug, though; I'm wondering how long it survived there. Anyway, after the numerator was put into a bracket pair, see <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0010-fixed-erase-size-for-big-samsung-nand.patch">patch</a>, the erase size shows up correct:</p>
-<pre><code class="language-console"># mtdinfo /dev/mtd0
-mtd0
-Name:                           boot
-Type:                           mlc-nand
-Eraseblock size:                524288 bytes, 512.0 KiB
-Amount of eraseblocks:          128 (67108864 bytes, 64.0 MiB)
-Minimum input/output unit size: 4096 bytes
-Sub-page size:                  4096 bytes
-OOB size:                       218 bytes
-Character device major/minor:   90:0
-Bad blocks are allowed:         true
-Device is writable:             true
-</code></pre>
-<blockquote>
-<p>[!NOTE]
-If you fix a bug in Linux kernel, think about that the bugfix could be applied to U-Boot since they share a lot of common drivers' code. Spoiler: in this case U-Boot was unaffected; the erase size was calculated slightly different.</p>
-</blockquote>
-<h3 id="ubifs-and-mlc-nand">UBIFS and MLC NAND</h3>
-<p>Having the bug with wrong erase block size fixed, I tried to create UBIFS partition and immediately failed with <code>ubi: refuse attaching mtd1 - MLC NAND is not supported</code>. Well, MLC NAND is <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b5094b7f135be">unsupported</a> by UBIFS.</p>
-<p>Searching across the internet revealed great news from 2020 [SLC NAND can be emulated in software]<a href="https://www.phoronix.com/news/Linux-5.8-NAND-MLC-SLC-Emulate">https://www.phoronix.com/news/Linux-5.8-NAND-MLC-SLC-Emulate</a>! Interestingly, skimming through the U-Boot source code I have not found any sign of SLC emulation. It might have looked in a wrong place, though.</p>
-<p>As always, nothing goes without patches:
-1. We need to patch Samsung NAND chip driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch</a>
-2. We need to patch NAND SoC driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch</a>
-3. We need to tell MTD Linux driver about slc-mode being used with a MTD partition: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch</a></p>
-<p>I'm wondering why 1. and 2. are required. To me it looks like some sort of a boundary violation between different software layers. Nevertheless, the rootfs1 on /dev/mtd3 parititon, which is flagged in the device tree with 'slc-mode', can be attached: </p>
-<pre><code class="language-console"># flash_erase /dev/mtd3 0 0
-Erasing 131072 Kibyte @ 0 -- 100 % complete 
-
-# ubiattach -p /dev/mtd3 -d 3
-[   89.510000] ubi3: attaching mtd3
-[   89.940000] ubi3: scanning is finished
-[   89.940000] ubi3: empty MTD device detected
-[   90.020000] ubi3: attached mtd3 (name &quot;rootfs1&quot;, size 128 MiB)
-[   90.020000] ubi3: PEB size: 262144 bytes (256 KiB), LEB size: 253952 bytes
-[   90.030000] ubi3: min./max. I/O unit sizes: 4096/4096, sub-page size 4096
-[   90.040000] ubi3: VID header offset: 4096 (aligned 4096), data offset: 8192
-[   90.040000] ubi3: good PEBs: 512, bad PEBs: 0, corrupted PEBs: 0
-[   90.050000] ubi3: user volume: 0, internal volumes: 1, max. volumes count: 128
-[   90.060000] ubi3: max/mean erase counter: 0/0, WL threshold: 4096, image sequence number: 3868442551
-[   90.070000] ubi3: available PEBs: 188, total reserved PEBs: 324, PEBs reserved for bad PEB handling: 320
-[   90.080000] ubi3: background thread &quot;ubi_bgt3d&quot; started, PID 102
-UBI device number 3, total 512 LEBs (130023424 bytes, 124.0 MiB), available 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (248.0 KiB)
-
-# ubimkvol /dev/ubi3 -N rootfs1 -m
-Set volume size to 47742976
-Volume ID 0, size 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (248.0 KiB), dynamic, name &quot;rootfs1&quot;, alignment 1
-
-# mount -t ubifs ubi3:rootfs1 /mnt
-[  318.930000] UBIFS (ubi3:0): default file-system created
-[  318.930000] UBIFS (ubi3:0): Mounting in unauthenticated mode
-[  318.950000] UBIFS (ubi3:0): background thread &quot;ubifs_bgt3_0&quot; started, PID 105
-[  319.140000] UBIFS (ubi3:0): UBIFS: mounted UBI device 3, volume 0, name &quot;rootfs1&quot;
-[  319.140000] UBIFS (ubi3:0): LEB size: 253952 bytes (248 KiB), min./max. I/O unit sizes: 4096 bytes/4096 bytes
-[  319.150000] UBIFS (ubi3:0): FS size: 45203456 bytes (43 MiB, 178 LEBs), max 188 LEBs, journal size 2285568 bytes (2 MiB, 9 LEBs)
-[  319.170000] UBIFS (ubi3:0): reserved for root: 2135070 bytes (2085 KiB)
-[  319.170000] UBIFS (ubi3:0): media format: w5/r0 (latest is w5/r0), UUID CFC4F740-B048-4097-B48C-C5D3D2FF1B96, small LPT model
-</code></pre>
-<p>Writing and reading in or from <code>/mnt</code> were working fine just until the next reboot. When I was trying to mount this very parition again, I was facing too many bit-flip errors: "ubi0: fixable bit-flip detected at PEB XYZ".</p>
-<h3 id="gpmi-driver-bugs">GPMI driver bugs</h3>
-<p>Even though there were many bit-flip errors, UBIFS could heal the partition by reading and rewriting its data. However, NAND flash could not be worn out. There must have been something wrong. What do you do, if you don't know further? Right, you 'consult' the internet. The closest I could find was this post here <a href="https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot">https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot</a>. Not so much helpful, though, since no solution or at least a tip for how to narrow the issue down.</p>
-<p>What should be done when searching for a bug in an unknown code base? Correct answer is: activate all log messages and increase log level from debug to something more visible! That's what I did in <em>gpmi-nand.c</em>, and at some point <code>No fingerprint found</code>  caught my eye. When reading <em>gpmi-nand.c</em> I stumbled upon iMX23 specific feature called NAND transcribing which is required for the BCH hardware being used for error correction. NAND transcribing means that bad block marks usually stored in the first OOB byte will be transcribed (copied) into the first page bytes (at position 0). Once this is done, "STMP" fingerprint will be written at byte position 12 in the first NAND flash page to prevent transcribing and data corruption recognised as bit-flips at the next boot up. BTW, "STMP" fingerprint is included in the header of a bootstream which will be written by <a href="#kobs-ng">kobs-ng</a>:</p>
-<p><img width="453" height="472" alt="Screenshot from 2026-07-18 17-28-51" src="https://github.com/user-attachments/assets/3671f110-aefc-4bae-9c75-fa9796cc5acb" /></p>
-<p>First 4 bytes of the NCB block above are reserved for "STMP" fingerprint.</p>
-<p>The rest of the story is unpretentious. The fingerprint has been written at byte position 22 with an offset of the length of metadata. After crafting and applying this patch <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0012-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0012-gpmi-nand.patch</a> to shift the fingerprint at its correct position, bit flips were gone. Another ten years old bug mistery solved! </p>
-<h2 id="spi-ethernet-enc28j60">SPI Ethernet ENC28J60</h2>
-<p>Yeah, good ol' ENC28J60. In how many not only DIY projects it has been beaten into... </p>
-<p>To support SPI Ethernet I used <em>imx23-evk.dts</em> and replaced eMMC with SPI: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0003-spi-ethernet-enc28j60.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0003-spi-ethernet-enc28j60.patch</a>.</p>
-<p>ENC28J60 did not work as supposed at first and I started worrying about SPI "being working, but keep in mind that it is half-duplex and so you need to modify other drivers to work with it" as it was mentioned <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">here</a>. But the reason was absolutely prosaic - the SPI bus frequency was too high. ENC28J60 started responding after reducing the frequency to 6MHz, which is a bit strange since I remember ENC28J60 working fine at up to 12MHz. BTW, SPI half-duplex is already supported, find <code>master-&gt;flags = SPI_CONTROLLER_HALF_DUPLEX;</code> in <em>spi-mxs.c</em>.</p>
-<p>Any ethernet cable can be used to connect iMX23 EVK with the host PC. Host PC should support Auto-MDI and I doubt that it does not. Network can be configured using following commands.</p>
-<p>For host pc: </p>
-<pre><code class="language-shell">sudo ethtool -s enp0s31f6 speed 10 duplex full autoneg off
-sudo ifconfig enp0s31f6 192.168.200.1 netmask 255.255.255.0 up
-</code></pre>
-<p>For iMX233 EVK:</p>
-<pre><code class="language-console">ethtool -s eth0 speed 10 duplex full autoneg off
-ifconfig eth0 192.168.200.2 netmask 255.255.255.0 up
-inetd
-[   63.300000] enc28j60 spi0.0 eth0: link down
-[   63.310000] enc28j60 spi0.0 eth0: normal mode
-[   63.310000] enc28j60 spi0.0 eth0: multicast mode
-[   63.330000] enc28j60 spi0.0 eth0: multicast mode
-[   65.590000] enc28j60 spi0.0 eth0: link up - Full duplex
-[   65.760000] enc28j60 spi0.0 eth0: link down
-[   68.000000] enc28j60 spi0.0 eth0: link up - Full duplex
-</code></pre>
-<p>Ethernet performance with approx. 200kB/sec is not great, but by a magnitude better than any <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">serial port network</a>.</p>
-<h2 id="i2c">I2C</h2>
-<p>There is not too much to add to. 24LC128 EEPROM sits on I2c bus at address 50. Its driver is implemented as <a href="https://docs.kernel.org/driver-api/nvmem.html">Non Volatile Memory</a> which can be accessed as shown below:  </p>
-<pre><code class="language-console"># dd if=/sys/bus/i2c/devices/0-0050/eeprom bs=1 count=512 | xxd | head -n3
-512+0 records in
-512+0 records out
-00000000: 4f9e 6683 3110 476e c866 06a0 2afe dd0e  O.f.1.Gn.f..*...
-00000010: 554d 9a46 5354 4d50 0100 0000 1900 0000  UM.FSTMP........
-00000020: 0d00 0000 0000 0000 0300 0700 0600 0100  ................
-</code></pre>
-<p>Also, MMA7455L accelerometer and LTC2487 analog-digital-converter must be hiding as I2C devices populated somewhere on the board. But, all what I wanted to see was I2C bus working, so that I'll leave it as an exercise to the reader :stuck_out_tongue_winking_eye:. </p>
-<h2 id="lradc">LRADC</h2>
-<p>LRADC is a 6-chanel 12-bit Low-Resolution Analog-to-Digital Converter. On the EVK board it is being used to connect multiple push-buttons organized as button resistor ladder to a single analog input pin on a microcontroller. Unfortunately, it did not work out of the box even if the driver <em>mxs-lradc-adc.c</em> is fairly simple. When probing IRQs it comes down to using <code>MX23_LRADC_TS_IRQ = 0</code> from <em>mxs-lradc.c</em> as a virtual IRQ, which is not allowed by the Linux kernel due a bug. This bug has been announced as <code>0 might be an invalid IRQ number</code> below:</p>
-<pre><code class="language-console">[   13.940000] ------------[ cut here ]------------
-[   13.940000] WARNING: CPU: 0 PID: 1 at drivers/base/platform.c:450 __platform_get_irq_byname+0xb4/0xd0
-[   13.950000] 0 might be an invalid IRQ number
-...
-[   14.140000] softirqs last disabled at (339663): [&lt;c00201e0&gt;] __irq_exit_rcu+0x12c/0x164
-[   14.150000] ---[ end trace 0000000000000000 ]---
-[   14.170000] input: mxs-lradc-ts as /devices/soc0/80000000.apb/80040000.apbx/80050000.lradc/mxs-lradc-ts/input/input0
-</code></pre>
-<p>Since the virtual IRQ will be remapped to a real one <a href="https://elixir.bootlin.com/linux/v6.6.143/source/drivers/iio/adc/mxs-lradc-adc.c#L746">here</a></p>
-<pre><code class="language-c">    for (i = 0; i &lt; 3; i++) {
-        irq = platform_get_irq_byname(pdev, mxs_lradc_ts_irq_names[i]);
-        if (irq &lt; 0)
-            return irq;
-
-        virq = irq_of_parse_and_map(node, irq);
-</code></pre>
-<p>showing the warning above would have been enough. Instead, Linux kernel forbids using any IRQ number 0. This is fixed by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0016-platform-allow-virtual-irqs.patch">patch</a> leaving the user with the warning only.</p>
-<h3 id="buttons">Buttons</h3>
-<p>To enable buttons this patch with precalculated voltage (see values marked blue in the calculation below) specific for every button pressed is required: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0001-adc-keys.patch">ADC keys patch</a>. Below is the corresponding part of the <a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">schematics</a>: <img width="1727" height="355" alt="Screenshot from 2026-07-19 11-08-39" src="https://github.com/user-attachments/assets/a91956a1-8243-4e8d-b5b3-98a5951b2d37" /></p>
-<p>And the math I have done: <img width="1245" height="402" alt="Screenshot from 2026-07-19 11-06-14" src="https://github.com/user-attachments/assets/3eab29df-6e19-4004-83d4-2f69663e6fbd" /></p>
-<p>While it was straight forward to derive specific voltage from the resistor ladder values given in the schematics, it was not easy to work out why the buttons still did not work as expected. <code>evtest</code> was showing some strange behaiviour: pressed wrong button or two buttons pressed simultaneously. I found the explanation in the reference manual:</p>
-<p><img width="831" height="92" alt="Screenshot from 2026-07-18 23-07-11" src="https://github.com/user-attachments/assets/09a5d8c5-5f7b-421b-bd06-f71a60c7d972" /></p>
-<p>Since the ADC reference voltage is 3.3V I needed to switch the voltage scale from 1.85V to VDDIO, see <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/rootfs-overlay/etc/init.d/S90buttons">here</a>. Having done that, all button started working fine:</p>
-<pre><code class="language-console"># evtest
-No device specified, trying to scan all of /dev/input/event*
-Available devices:
-/dev/input/event0:  mxs-lradc-ts
-/dev/input/event1:  adc-keys
-Select the device event number [0-1]: 1
-Input driver version is 1.0.1
-Input device ID: bus 0x19 vendor 0x1 product 0x1 version 0x100
-Input device name: &quot;adc-keys&quot;
-Supported events:
-  Event type 0 (EV_SYN)
-  Event type 1 (EV_KEY)
-    Event code 2 (KEY_1)
-    Event code 3 (KEY_2)
-    Event code 4 (KEY_3)
-    Event code 28 (KEY_ENTER)
-    Event code 103 (KEY_UP)
-    Event code 105 (KEY_LEFT)
-    Event code 106 (KEY_RIGHT)
-    Event code 108 (KEY_DOWN)
-Properties:
-Testing ... (interrupt to exit)
-Event: time 16799.207656, type 1 (EV_KEY), code 108 (KEY_DOWN), value 1
-Event: time 16799.207656, -------------- SYN_REPORT ------------
-Event: time 16799.316531, type 1 (EV_KEY), code 108 (KEY_DOWN), value 0
-Event: time 16799.316531, -------------- SYN_REPORT ------------
-Event: time 16799.536468, type 1 (EV_KEY), code 105 (KEY_LEFT), value 1
-Event: time 16799.536468, -------------- SYN_REPORT ------------
-Event: time 16799.646437, type 1 (EV_KEY), code 105 (KEY_LEFT), value 0
-Event: time 16799.646437, -------------- SYN_REPORT ------------
-Event: time 16799.976531, type 1 (EV_KEY), code 106 (KEY_RIGHT), value 1
-Event: time 16799.976531, -------------- SYN_REPORT ------------
-Event: time 16800.086437, type 1 (EV_KEY), code 106 (KEY_RIGHT), value 0
-Event: time 16800.086437, -------------- SYN_REPORT ------------
-Event: time 16800.416531, type 1 (EV_KEY), code 28 (KEY_ENTER), value 1
-Event: time 16800.416531, -------------- SYN_REPORT ------------
-Event: time 16800.526437, type 1 (EV_KEY), code 28 (KEY_ENTER), value 0
-Event: time 16800.526437, -------------- SYN_REPORT ------------
-</code></pre>
-<p><code>cat /sys/bus/iio/devices/iio:device0/in_voltage0_raw</code> can be used to verify what ADC is actually seeing.</p>
-<h3 id="on-die-temperature-sensor">On-die temperature sensor</h3>
-<p>On-die temperature sensor will work after enabling IIO (industrial IO). See Linux kernel additional confifuration below:</p>
-<pre><code>CONFIG_IIO=y
-CONFIG_MXS_LRADC_ADC=y
-CONFIG_HWMON=y
-CONFIG_SENSORS_IIO_HWMON=y
-</code></pre>
-<p>Then in the Linux console:</p>
-<pre><code class="language-console"># raw=`cat /sys/bus/iio/devices/iio:device0/in_temp8_raw`
-# offset=`cat /sys/bus/iio/devices/iio:device0/in_temp8_offset`
-# scale=`cat /sys/bus/iio/devices/iio:device0/in_temp8_scale`
-awk -v raw=$raw -v offset=$offset -v scale=$scale 'BEGIN { printf &quot;Temperature is %.02f degC\n&quot;, (raw + (offset))*scale }'
-Temperature is 28.93 degC
-</code></pre>
-<h2 id="dcp-crypto">DCP crypto</h2>
-<p>Since I wanted EVK booting from NAND I needed to make DCP crypto hardware usable with kobs-ng tool. Luckily, I could have found all required patches: 
-1. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch</a>
-2. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a> credited to <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a>. I have 'married' the first patch with usbarmory's one and slightly adapted to Linux kernel 6.6.y.</p>
-<h2 id="sound-driver">Sound driver</h2>
-<p>Sound driver for an old Linux kernels (&lt;4.3) can be found here <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> and here <a href="https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5">https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5</a>. Due to a massive rework of the ALSA framework in the Linux kernel at the time of 4.4, these patches can not be reapplied as is.</p>
-<p>I could snap up enough information about ALSA system from <a href="https://bootlin.com/doc/training/audio/audio-slides.pdf">Audio with embedded Linux training</a> and rework <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> patches to use them with Linux kernel 6.6.y. Among the biggest changes was the machine driver, which had to make way for the <a href="https://www.kernel.org/doc/Documentation/devicetree/bindings/sound/simple-card.txt">simple audio card</a>. Also many obsolete structures and function calls must have been replaced with newer ones, but the rest of the driver remained almost unchanged.   </p>
-<p>When applying new patches, all *mxs-audio*.patch and also 0001-rtc-nvmem.patch from <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143</a> are required. The audio driver sets a few bits in RTC (yes!) registers to achieve better sound quality. I moved this to the RTC driver (see function <code>stmp3xxx_nvmem_write()</code>) since I wanted RTC and sound driver being usable at simultaneously. (I have not tried to find a better solution for this, sorry.)</p>
-<pre><code class="language-console"># uname -a
-Linux buildroot 6.6.143 #1 Fri Jul 10 19:31:32 NZST 2026 armv5tejl GNU/Linux
-
-# aplay -L
-null
-    Discard all samples (playback) or generate zero samples (capture)
-default:CARD=mxsbuiltinaudio
-    mxs-builtin-audio, mxs-builtin-cpu-dai-mxs-builtin-codec-dai mxs-builtin-codec-dai
-    Default Audio Device
-sysdefault:CARD=mxsbuiltinaudio
-    mxs-builtin-audio, mxs-builtin-cpu-dai-mxs-builtin-codec-dai mxs-builtin-codec-dai
-    Default Audio Device
-
-# amixer
-Simple mixer control 'Mic PGA',0
-  Capabilities: cvolume cvolume-joined
-  Capture channels: Mono
-  Limits: Capture 0 - 3
-  Mono: Capture 1 [33%]
-Simple mixer control '3D effect',0
-  Capabilities: enum
-  Items: 'Off' 'Low' 'Medium' 'High'
-  Item0: 'Off'
-Simple mixer control 'ADC',0
-  Capabilities: cvolume
-  Capture channels: Front Left - Front Right
-  Limits: Capture 0 - 255
-  Front Left: Capture 254 [100%]
-  Front Right: Capture 254 [100%]
-Simple mixer control 'ADC PGA',0
-  Capabilities: cvolume cswitch cswitch-joined
-  Capture channels: Front Left - Front Right
-  Limits: Capture 0 - 15
-  Front Left: Capture 2 [13%] [on]
-  Front Right: Capture 2 [13%] [on]
-Simple mixer control 'DAC',0
-  Capabilities: pvolume pswitch
-  Playback channels: Front Left - Front Right
-  Limits: Playback 0 - 15
-  Mono:
-  Front Left: Playback 15 [100%] [off]
-  Front Right: Playback 15 [100%] [off]
-Simple mixer control 'HP',0
-  Capabilities: pvolume
-  Playback channels: Front Left - Front Right
-  Limits: Playback 0 - 127
-  Mono:
-  Front Left: Playback 115 [91%]
-  Front Right: Playback 115 [91%]
-Simple mixer control 'HP Mux',0
-  Capabilities: enum
-  Items: 'DAC Out' 'Line In 1'
-  Item0: 'DAC Out'
-Simple mixer control 'Left ADC Mux',0
-  Capabilities: enum
-  Items: 'Mic' 'Line In 1' 'Head Phone' 'Line In 2'
-  Item0: 'Mic'
-Simple mixer control 'Right ADC Mux',0
-  Capabilities: enum
-  Items: 'Mic' 'Line In 1' 'Head Phone' 'Line In 2'
-  Item0: 'Mic'
-</code></pre>
-<blockquote>
-<p>[!WARNING]
-Even though audio playback and voice recording can be confirmed working, one issues still remains. Audio playback gets sometimes stuck and the board must be reset. I assume a well-known <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363485">Erratum 2349</a>. However, the solution to that problem provided in the errata sheet and implemented in the sound driver does not work out.</p>
-</blockquote>
-<h2 id="tv-out">TV-out</h2>
-<p>TV-out does not work and does not seem to be of highest priority. However, it should not be too complicated to port unofficial <a href="https://github.com/xobs/linux-2.6.28.mx233-falconwing/blob/master/arch/arm/mach-stmp3xxx/tvenc.c">tv-enc driver</a> to a recent kernel. Hereby these two drivers might be useful as examples:
-1. <a href="https://github.com/torvalds/linux/blob/master/drivers/gpu/drm/imx/ipuv3/imx-tve.c">imx-tve.c</a>
-2. <a href="https://github.com/torvalds/linux/blob/master/drivers/video/fbdev/omap2/omapfb/displays/connector-analog-tv.c">connector-analog-tv.c</a></p>
-<h1 id="booting-via-nand">Booting via NAND</h1>
+<p>SPI Ethernet is still blocked by the SD card interface; that needs to be fixed in the device tree. The line <code>enc28j60 spi0.0: Ethernet driver 1.02 loaded</code> in the log above is a bit misleading, as it only says that the driver was loaded, not that the hardware is usable.</p>
+<h2 id="booting-via-nand">Booting via NAND</h2>
+<p>The following EVK experiment builds on the USB boot above and uses the patched
+<a href="#kobs-ng">kobs-ng</a>, together with the NAND and DCP driver work described in
+<a href="#hardware-and-driver-findings">Hardware and driver findings</a>. Keep a working
+USB recovery path before changing NAND.</p>
 <p>There are two thoughts I would eagerly like to share about using NAND in embedded devices:
-1. Using <em>raw</em> NAND must definitely be banned from embedded world.
-2. Using <em>raw</em> NAND might be only allowed to be used with very low-cost consumer devices which lifetime is often limited by a couple of years.</p>
-<p>When using NAND in their devices, developers will be required to maintain <em>ALL</em> related tools specific for the SoC of their choice for years, even after the SoC platform became officially obsolete! Industrial grade devices are often developed for a service period of ten years, which will be prolonged by another ten almost <em>always</em>.</p>
-<p>NAND tools must be SoC-specific because each SoC integrates its unique NAND Flash Controller (NFC), e.g. GPMI NAND controller for the iMX series. These controllers determine how data is physically accessed and protected with error correction codes, making generic tools incompatible across different hardware platforms.</p>
-<p>What else adds to complexity?
+1. Using <em>raw</em> NAND must definitely be banned from the embedded world.
+2. Using <em>raw</em> NAND might be allowed only in very low-cost consumer devices whose lifetime is often limited to a couple of years.</p>
+<p>When using NAND in their devices, developers are required to maintain <em>ALL</em> related tools specific to their chosen SoC for years, even after the SoC platform has become officially obsolete! Industrial-grade devices are often developed for a service period of ten years, which, at the suggestion of marketing and other very important departments, will be prolonged by another ten almost <em>always</em>.</p>
+<p>NAND tools must be SoC-specific because each SoC integrates its own NAND Flash Controller (NFC), e.g. the GPMI NAND controller for the iMX series. These controllers determine how data is physically accessed and protected with error correction codes, making generic tools incompatible across different hardware platforms.</p>
+<p>What else adds to the complexity?
 * proprietary hardware interfaces: every SoC manufacturer designs their NFC differently. Tools must utilize hardware-specific commands to communicate with the chip.
 * vendor-specific ECC: raw NAND flash requires error correction code (ECC) to prevent data corruption. Because different SoCs use different ECC algorithms, the tools must encode/decode data exactly as the target SoC expects it.
 * bad block management (BBM): SoCs employ proprietary software or hardware schemes to map around physically defective memory blocks. Generic tools cannot inherently parse these custom bad block tables.
 * BootROM &amp; security protocols: SoCs use secure boot chains with custom encryption keys, headers, and authentication methods. Tools must package firmware images precisely according to these SoC-enforced constraints =&gt; iMX23 bootstream.
 * flashing &amp; recovery mechanisms: recovery modes for unbootable boards rely on SoC-specific ROM codes. Tools use these vendor-developed USB/UART protocols to bypass broken operating systems and push fresh bootloaders.</p>
-<p>That's probably why all conscious developers would rather use eMMC with standard tools! (In the meantime, I'm gonna get a t-shirt with "I love eMMC!" quote on it.)</p>
-<h2 id="kobs-ng">kobs-ng</h2>
-<p>When configured to boot from NAND (DIP switch 0100), iMX23 will search for the boostream in a specific format written in NAND flash using specific pattern. Specific pattern guarantees that SoC will still be able to boot even if the bootstream read from NAND is corrupted by bad block.</p>
-<p><a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/freescale-imx/imx-kobs">kobs-ng</a> is the tool of choice when a bootstream must be written in NAND. The only thing is - it did not work with iMX23 and 6.6.y Linux kernel.</p>
-<p>Long story short. I used <a href="http://www.linux-mtd.infradead.org/faq/nand.html#L_nand_nandsim">NAND simulator</a> to debug through kobs-ng and craft a patch. The patch can be found here <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch</a>. What does it include?
+<p>That's probably why all sensible developers would rather use eMMC with standard tools! (In the meantime, I'm gonna get a t-shirt with the quote "I love eMMC!" on it.)</p>
+<h3 id="kobs-ng">kobs-ng</h3>
+<p>When configured to boot from NAND (DIP switch 0100), the iMX23 searches for a bootstream in a specific format, written to NAND flash using a specific pattern. This pattern is intended to let the SoC boot even if a copy of the bootstream is affected by a bad block.</p>
+<p><a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/freescale-imx/imx-kobs">kobs-ng</a> is the tool of choice when a bootstream must be written to NAND. The only thing is - it did not work with iMX23 and the 6.6.y Linux kernel.</p>
+<p>Long story short: I used the <a href="http://www.linux-mtd.infradead.org/faq/nand.html#L_nand_nandsim">NAND simulator</a> to debug kobs-ng and craft a patch. The patch can be found here <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch</a>. What does it include?
 * iMX23/iMX28 SoC detection
 * bugfixes
 * removed annoying warnings
 * DCP crypto hardware can be used to program devices with crypto keys set</p>
-<h2 id="2k-vs-4k-nand-page-size">2k vs. 4k NAND page size</h2>
-<p>Using nandsim to get kobs-ng working was helpful, but the ultimate proof whether iMX23 can boot from NAND is, obviously, iMX23 booting from NAND. And, as always, first it did not work with iMX23 EVK. BootROM was showing 0x80508003 (Unable to find LDLB), see <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/54683/1/IMX23_ROM_Error_Codes.pdf">iMX23 ROM error codes</a>. At least it could find NCB.</p>
-<p>While kobs-ng did not work with iMX23 EVK, it <em>did</em> work fine when programming a custom board with NAND page size = 2k and erase page size = 128k. To recall, iMX23 EVK has Samsung NAND flash with page size = 4k and erase page size = 512k.</p>
-<p>After trying multiple weird things and reading reference manual for another three halfdays I finally found the answer - 64. 64 sectors as the magic stride size used by BootRom to iterate when searching for bootstream structures in NAND. Samsung NAND erase page size and page size are misguiding for kobs-ng since 512k/4k = 128 sectors instead of 64. I think, the stride size given in sectors is adjustuble in OTP fuses:
+<h3 id="2k-vs-4k-nand-page-size">2k vs. 4k NAND page size</h3>
+<p>Using nandsim to get kobs-ng working was helpful, but the ultimate proof that iMX23 can boot from NAND is, obviously, iMX23 booting from NAND. And, as always, it did not work with the iMX23 EVK at first. BootROM was showing 0x80508003 (Unable to find LDLB), see <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/54683/1/IMX23_ROM_Error_Codes.pdf">iMX23 ROM error codes</a>. At least it could find the NCB.</p>
+<p>While kobs-ng did not work with the iMX23 EVK, it <em>did</em> work fine when programming a custom board with NAND page size = 2k and erase block size = 128k. To recap, the iMX23 EVK has Samsung NAND flash with page size = 4k and erase block size = 512k.</p>
+<p>After trying multiple weird things and reading the reference manual for another three half-days, I finally found the answer - 64. BootROM's search-count setting is expressed in 64-page blocks. Meanwhile, kobs-ng uses an erase block as its stride: the Samsung NAND has 512k/4k = 128 pages per erase block. The OTP fuse controls how many 64-page blocks BootROM skips:
 <img width="942" height="64" alt="Screenshot from 2026-07-19 13-16-22" src="https://github.com/user-attachments/assets/0a609c01-ad2e-4419-a80d-3b183bc03075" /></p>
-<p>However, having a better solution I did not try it out. "The better solution" was to pass <code>--search_exponent=1</code> argument to kobs-ng. <code>linux-itb.sb</code> is exactly the same ITB file I used to boot from USB, see <a href="#Booting-via-USB">Booting-via-USB</a>:</p>
+<p>The reference-manual excerpt describes <code>BOOT_SEARCH_COUNT</code> as the number of
+64-page blocks skipped when searching; its default value of 0 means four such
+blocks, or <strong>256 pages</strong>. In the patched kobs-ng, the size of one search area
+is calculated in erase blocks. For the default BootROM setting, the two
+search-area sizes therefore need to agree:</p>
+<pre><code class="language-text">4 × 64 pages = 2^search_exponent × (erase block size / page size)
+</code></pre>
+<p>On the EVK, <code>--search_exponent=1</code> gives <code>2 × (512 KiB / 4 KiB) = 256</code>
+pages. On my 2 KiB-page custom board, the default exponent of 2 gives
+<code>4 × (128 KiB / 2 KiB) = 256</code> pages. This matches the search-area
+boundaries; the placement of copies within those areas and bad blocks also
+matter. I did not test changing the fuse.</p>
+<p>So the solution was to pass the <code>--search_exponent=1</code> argument to kobs-ng. <code>linux-itb.sb</code> is the same bootstream containing an ITB file that I used to boot from USB, see <a href="#booting-via-usb">Booting via USB</a>:</p>
+<blockquote>
+<p>[!WARNING]
+The following command writes to NAND and erases blocks. Verify the target,
+back up any data you need, and make sure USB recovery is available first.</p>
+</blockquote>
 <details>
-<summary>Click to view NAND botstream programming output</summary>
+<summary>Click to view NAND bootstream programming output</summary>
 
 
 <pre><code class="language-console"># kobs-ng -d -v -0 -w --search_exponent=1 linux-itb.sb
@@ -1038,7 +737,7 @@ mtd_commit_bcb(DBBT): status 0
 
 </details>
 
-<p>What is important in the log above: all structures (NCB, LDLB and DBBT) are equally spaced by exactly one erase page.</p>
+<p>What is important in the log above: all structures (NCB, LDLB and DBBT) are equally spaced by exactly one erase block.</p>
 <p>And finally, happy BootROM booting from NAND:</p>
 <details>
 <summary>Click to view NAND boot output</summary>
@@ -1061,7 +760,7 @@ Loading Environment from nowhere... OK
 In:    serial
 Out:   serial
 Err:   serial
-Hit any key to stop autoboot:  0 
+Hit any key to stop autoboot:  0
 MMC: no card present
 MMC: no card present
 Try booting from ITB at 0x46000000
@@ -1341,9 +1040,375 @@ buildroot login:
 
 </details>
 
-<h2 id="8k-nand-page-size">8k NAND page size</h2>
-<p>8k pages are supported by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">patch</a> as found and copied from <a href="https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944">https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944</a>. However, not having hardware with NAND flash with such page size I could not test it, so that 8k page size support is more for completeness.</p>
-<h1 id="references">References</h1>
+<h3 id="8k-nand-page-size">8k NAND page size</h3>
+<p>8k pages are supported by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">patch</a>, as found and copied from <a href="https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944">https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944</a>. However, without hardware with that NAND page size I could not test it, so 8k page size support is more for completeness.</p>
+<h2 id="hardware-and-driver-findings">Hardware and driver findings</h2>
+<h3 id="u-boot">U-Boot</h3>
+<h4 id="nand-driver">NAND driver</h4>
+<p>An observant reader might have noticed <code>NAND:  4096 MiB</code> in the logs above. Well, those logs were captured after the Linux MXS GPMI driver was ported to U-Boot. Several half-days passed between that sentence and the following log with NAND bad blocks. A very rewarding log, though:</p>
+<blockquote>
+<p>[!WARNING]
+The <code>nand erase.chip -y</code> command below erases the entire NAND chip. Back up
+anything you need and make sure you have a recovery path before using it.</p>
+</blockquote>
+<pre><code class="language-console">=&gt; nand info
+
+Device 0: nand0, sector size 512 KiB
+  Page size         4096 b
+  OOB size           218 b
+  Erase size      524288 b
+  ecc strength        16 bits
+  ecc step size      512 b
+  subpagesize       4096 b
+  options       0x00004208
+  bbt options   0x00010000
+
+=&gt; nand erase.chip -y
+
+NAND erase.chip: device 0 whole chip
+Skipping bad block at  0x04480000
+Skipping bad block at  0xa1500000
+Skipping bad block at  0xab180000
+Skipping bad block at  0xae280000
+Skipping bad block at  0xd6c00000
+Skipping bad block at  0xda000000
+Skipping bad block at  0xe3700000
+Erasing at 0xfff80000 -- 100% complete.
+OK
+=&gt;
+</code></pre>
+<p>U-Boot patches related to the NAND subsystem can be found under <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04</a>. It is a rather long series of patches which, apart from adding NAND support, resolves a few compilation issues and provides a workaround for <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363760">Erratum 2847</a>, thankfully taken from the Linux kernel sources.</p>
+<h4 id="otp-fuses">OTP fuses</h4>
+<p>Apparently there is <a href="https://github.com/nxp-imx/mfgtools">MfgTool</a> for burning OTP fuses. However, I never tried using MfgTool since I discovered that U-Boot can do this for me. U-Boot requires a little patch and can write and read fuses just fine: <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch</a>. The example below only reads a fuse; writing OTP fuses is irreversible, so do it carefully if you are going to try this.</p>
+<pre><code class="language-console">=&gt; fuse read 0 0
+Reading bank 0:
+
+Word 0x00000000: 00049f01
+</code></pre>
+<p>No idea why bank 0 word 0, which is for customer use, is preprogrammed. Maybe Freescale as the board manufacturer was its own 'customer'.</p>
+<h3 id="linux">Linux</h3>
+<p>Since we have a Linux console, it's time to check the hardware drivers.</p>
+<h4 id="otp-fuses_1">OTP fuses</h4>
+<p>OTP fuses can be accessed as Non-Volatile Memory (NVMEM):</p>
+<pre><code class="language-console">#hexdump /sys/devices/soc0/80000000.apb/80000000.apbh/8002c000.efuse/mxs-ocotp0/nvmem
+0000000 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000020 9f01 0004 0000 0000 0000 0000 0000 0000
+0000030 1893 0000 0000 0000 0000 0000 0000 0000
+0000040 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000100 0000 0009 0000 0000 0000 0000 0000 0000
+0000110 0000 2000 0000 0000 0000 0000 0000 0000
+0000120 0140 4088 0000 0000 0000 0000 0000 0000
+0000130 0001 0000 0000 0000 0000 0000 0000 0000
+0000140 0a3b 0000 0000 0000 0000 0000 0000 0000
+0000150 da7e 0002 0000 0000 0000 0000 0000 0000
+0000160 ca3b 911a 0000 0000 0000 0000 0000 0000
+0000170 0000 0000 0000 0000 0000 0000 0000 0000
+*
+00001a0 0008 0020 0000 0000 0000 0000 0000 0000
+00001b0 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000210 0101 0000 0000 0000 0000 0000 0000 0000
+0000220
+</code></pre>
+<h4 id="usb">USB</h4>
+<p>The EVK hardware must be rewired a bit to test USB host mode. Since the USB host driver had been successfully tested with the Olinuxino Mini, I skipped it on the EVK.</p>
+<h4 id="nand-driver_1">NAND driver</h4>
+<p>In the device tree I created multiple MTD partitions: boot, u-boot-env, rootfs and data.</p>
+<p>The bootstream will be programmed in the 'boot' partition. The other partitions can be used as their names suggest.</p>
+<h5 id="samsung-nand-erase-block-size-detection-bugs">Samsung NAND erase block size detection bugs</h5>
+<p>I ran <code>mtdinfo -a</code> and got a 512MB erase size for the Samsung K9LBG08U0D NAND flash. Even if technological advancement in microelectronics is happening rapidly, I would not expect 512MB. (Just looked up 🙄: up to 96MB erase block size for QLC NAND.) Searching the internet turned up a similar issue: <a href="https://archlinuxarm.org/forum/viewtopic.php?f=33&amp;t=14511">https://archlinuxarm.org/forum/viewtopic.php?f=33&amp;t=14511</a>.</p>
+<p>Every other NAND flash characteristic was printed as the data sheet suggested, most importantly page size = 4k and OOB size = 218 bytes.</p>
+<p>Where could the bug be hiding? To answer this question we need to know, roughly, how the Linux NAND subsystem is organised:
+| Linux NAND subsystem | Source file(s) |
+| --- | --- |
+| Filesystem driver | SquashFS, UBI/UBIFS |
+| MTD driver | <em>drivers/mtd/mtd*.c</em> |
+| NAND base layer | <em>drivers/mtd/nand/raw/nand_base.c</em> and its consorts |
+| NAND SoC driver | <em>drivers/mtd/nand/raw/gpmi-nand/gpmi_nand.c</em> |
+| NAND chip driver | <em>drivers/mtd/nand/raw/nand_samsung.c</em> |</p>
+<p>The NAND chip driver is responsible for identifying the chip, meaning the page size, OOB size and erase block size are determined by that driver. After spending a few hours reading <em>nand_samsung.c</em>, I finally spotted something interesting:</p>
+<pre><code class="language-c">        /* Get blocksize */
+        extid &gt;&gt;= 2;
+        memorg-&gt;pages_per_eraseblock = (128 * 1024) &lt;&lt;
+                           (((extid &gt;&gt; 1) &amp; 0x04) |
+                        (extid &amp; 0x03)) /
+                           memorg-&gt;pagesize;
+        mtd-&gt;erasesize = (128 * 1024) &lt;&lt;
+                 (((extid &gt;&gt; 1) &amp; 0x04) | (extid &amp; 0x03));
+</code></pre>
+<p>Those missing brackets around numerator before dividing by pagesize are sneaky! A very typical bug, though; I wonder how long it survived there. Anyway, after the numerator was put in brackets, see the <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0010-fixed-erase-size-for-big-samsung-nand.patch">patch</a>, the erase size shows up correctly:</p>
+<pre><code class="language-console"># mtdinfo /dev/mtd0
+mtd0
+Name:                           boot
+Type:                           mlc-nand
+Eraseblock size:                524288 bytes, 512.0 KiB
+Amount of eraseblocks:          128 (67108864 bytes, 64.0 MiB)
+Minimum input/output unit size: 4096 bytes
+Sub-page size:                  4096 bytes
+OOB size:                       218 bytes
+Character device major/minor:   90:0
+Bad blocks are allowed:         true
+Device is writable:             true
+</code></pre>
+<blockquote>
+<p>[!NOTE]
+If you fix a bug in the Linux kernel, consider whether the fix also applies to U-Boot, since they share a lot of driver code. Spoiler: in this case U-Boot was unaffected; the erase size was calculated slightly differently.</p>
+</blockquote>
+<h5 id="ubifs-and-mlc-nand">UBIFS and MLC NAND</h5>
+<p>Having fixed the wrong erase block size, I tried to create a UBIFS partition and immediately failed with <code>ubi: refuse attaching mtd1 - MLC NAND is not supported</code>. Well, MLC NAND is <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b5094b7f135be">unsupported</a> by UBIFS.</p>
+<p>Searching the internet revealed great news from 2020: <a href="https://www.phoronix.com/news/Linux-5.8-NAND-MLC-SLC-Emulate">SLC NAND can be emulated in software</a>! Interestingly, skimming through the U-Boot source code I found no sign of SLC emulation. I might have looked in the wrong place, though.</p>
+<p>As always, nothing goes without patches:
+1. We need to patch Samsung NAND chip driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/linux/6.6.143/0011-added-support-for-slc-emulation.patch</a>
+2. We need to patch NAND SoC driver: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0014-gpmi-nand.patch</a>
+3. We need to tell MTD Linux driver about slc-mode being used with a MTD partition: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0015-gpmi-nand.patch</a></p>
+<p>I wonder why 1. and 2. are required. To me it looks like some sort of a boundary violation between different software layers. Nevertheless, rootfs1 on the /dev/mtd3 partition, which is flagged in the device tree with 'slc-mode', can be attached:</p>
+<blockquote>
+<p>[!WARNING]
+<code>flash_erase</code> destroys the contents of the specified MTD partition. Verify
+the partition and back up any data you need before running it.</p>
+</blockquote>
+<pre><code class="language-console"># flash_erase /dev/mtd3 0 0
+Erasing 131072 Kibyte @ 0 -- 100 % complete
+
+# ubiattach -p /dev/mtd3 -d 3
+[   89.510000] ubi3: attaching mtd3
+[   89.940000] ubi3: scanning is finished
+[   89.940000] ubi3: empty MTD device detected
+[   90.020000] ubi3: attached mtd3 (name &quot;rootfs1&quot;, size 128 MiB)
+[   90.020000] ubi3: PEB size: 262144 bytes (256 KiB), LEB size: 253952 bytes
+[   90.030000] ubi3: min./max. I/O unit sizes: 4096/4096, sub-page size 4096
+[   90.040000] ubi3: VID header offset: 4096 (aligned 4096), data offset: 8192
+[   90.040000] ubi3: good PEBs: 512, bad PEBs: 0, corrupted PEBs: 0
+[   90.050000] ubi3: user volume: 0, internal volumes: 1, max. volumes count: 128
+[   90.060000] ubi3: max/mean erase counter: 0/0, WL threshold: 4096, image sequence number: 3868442551
+[   90.070000] ubi3: available PEBs: 188, total reserved PEBs: 324, PEBs reserved for bad PEB handling: 320
+[   90.080000] ubi3: background thread &quot;ubi_bgt3d&quot; started, PID 102
+UBI device number 3, total 512 LEBs (130023424 bytes, 124.0 MiB), available 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (248.0 KiB)
+
+# ubimkvol /dev/ubi3 -N rootfs1 -m
+Set volume size to 47742976
+Volume ID 0, size 188 LEBs (47742976 bytes, 45.5 MiB), LEB size 253952 bytes (248.0 KiB), dynamic, name &quot;rootfs1&quot;, alignment 1
+
+# mount -t ubifs ubi3:rootfs1 /mnt
+[  318.930000] UBIFS (ubi3:0): default file-system created
+[  318.930000] UBIFS (ubi3:0): Mounting in unauthenticated mode
+[  318.950000] UBIFS (ubi3:0): background thread &quot;ubifs_bgt3_0&quot; started, PID 105
+[  319.140000] UBIFS (ubi3:0): UBIFS: mounted UBI device 3, volume 0, name &quot;rootfs1&quot;
+[  319.140000] UBIFS (ubi3:0): LEB size: 253952 bytes (248 KiB), min./max. I/O unit sizes: 4096 bytes/4096 bytes
+[  319.150000] UBIFS (ubi3:0): FS size: 45203456 bytes (43 MiB, 178 LEBs), max 188 LEBs, journal size 2285568 bytes (2 MiB, 9 LEBs)
+[  319.170000] UBIFS (ubi3:0): reserved for root: 2135070 bytes (2085 KiB)
+[  319.170000] UBIFS (ubi3:0): media format: w5/r0 (latest is w5/r0), UUID CFC4F740-B048-4097-B48C-C5D3D2FF1B96, small LPT model
+</code></pre>
+<p>Writing and reading files under <code>/mnt</code> worked fine until the next reboot. When I tried to mount the same partition again, I ran into too many bit-flip errors: "ubi0: fixable bit-flip detected at PEB XYZ".</p>
+<h5 id="gpmi-driver-bugs">GPMI driver bugs</h5>
+<p>Even though there were many bit-flip errors, UBIFS could heal the partition by reading and rewriting its data. However, the NAND flash could not have been worn out. There must have been something wrong. What do you do when you don't know what to try next? Right, you 'consult' the internet. The closest I could find was this post: <a href="https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot">https://linux-mtd.infradead.narkive.com/fgiINLRg/bit-flip-detection-after-boot</a>. Not so helpful, though, since it offered no solution or even a tip on how to narrow the issue down.</p>
+<p>What do you do when searching for a bug in an unfamiliar codebase? The answer is: activate all log messages and increase the log level from debug to something more visible! That's what I did in <em>gpmi-nand.c</em>, and at some point <code>No fingerprint found</code> caught my eye. While reading <em>gpmi-nand.c</em>, I stumbled upon an iMX23-specific feature called NAND transcribing, which is required for the BCH hardware used for error correction. NAND transcribing means that bad block marks usually stored in the first OOB byte are transcribed (copied) into the first page bytes (at position 0). Once this is done, the "STMP" fingerprint is written at byte position 12 in the first NAND flash page to prevent transcribing again and corrupting data, which appears as bit-flips at the next boot. BTW, the "STMP" fingerprint is included in the header of a bootstream written by <a href="#kobs-ng">kobs-ng</a>:</p>
+<p><img width="453" height="472" alt="Screenshot from 2026-07-18 17-28-51" src="https://github.com/user-attachments/assets/3671f110-aefc-4bae-9c75-fa9796cc5acb" /></p>
+<p>The first 4 bytes of the NCB block above are reserved for the "STMP" fingerprint.</p>
+<p>The rest of the story is straightforward. The fingerprint had been written at byte position 22 - an offset by the length of the metadata. After crafting and applying this patch <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0012-gpmi-nand.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0012-gpmi-nand.patch</a> to shift the fingerprint to its correct position, the bit flips were gone. Another ten-year-old bug mystery solved!</p>
+<h4 id="spi-ethernet-enc28j60">SPI Ethernet ENC28J60</h4>
+<p>Yeah, good ol' ENC28J60. I do wonder in how many projects, not just DIY ones, it has  beaten into...</p>
+<p>To support SPI Ethernet I used <em>imx23-evk.dts</em> and replaced eMMC with SPI: <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0003-spi-ethernet-enc28j60.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0003-spi-ethernet-enc28j60.patch</a>.</p>
+<p>The ENC28J60 did not work as expected at first, and I started worrying about the SPI warning mentioned <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">here</a>: "being working, but keep in mind that it is half-duplex and so you need to modify other drivers to work with it". But the reason was absolutely prosaic - the SPI bus frequency was too high. The ENC28J60 started responding after reducing the frequency to 6MHz, which is a bit strange since I remember the ENC28J60 working fine at up to 12MHz. BTW, SPI half-duplex is already supported: find <code>master-&gt;flags = SPI_CONTROLLER_HALF_DUPLEX;</code> in <em>spi-mxs.c</em>.</p>
+<p>An Ethernet cable can be used to connect the iMX23 EVK to the host PC. The host PC should support Auto-MDI, and I doubt that it doesn't. The network can be configured using the following commands.</p>
+<p>For the host PC:</p>
+<pre><code class="language-shell">sudo ethtool -s enp0s31f6 speed 10 duplex full autoneg off
+sudo ifconfig enp0s31f6 192.168.200.1 netmask 255.255.255.0 up
+</code></pre>
+<p>For the iMX233 EVK:</p>
+<pre><code class="language-console">ethtool -s eth0 speed 10 duplex full autoneg off
+ifconfig eth0 192.168.200.2 netmask 255.255.255.0 up
+inetd
+[   63.300000] enc28j60 spi0.0 eth0: link down
+[   63.310000] enc28j60 spi0.0 eth0: normal mode
+[   63.310000] enc28j60 spi0.0 eth0: multicast mode
+[   63.330000] enc28j60 spi0.0 eth0: multicast mode
+[   65.590000] enc28j60 spi0.0 eth0: link up - Full duplex
+[   65.760000] enc28j60 spi0.0 eth0: link down
+[   68.000000] enc28j60 spi0.0 eth0: link up - Full duplex
+</code></pre>
+<p>Ethernet manages approximately 200 kB/s which is not much, but still an order of magnitude quicker than <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">serial port network</a> after its morning coffee.</p>
+<h4 id="i2c">I2C</h4>
+<p>There is not too much to add. The 24LC128 EEPROM sits on the I2C bus at address 50. Its driver exposes it as <a href="https://docs.kernel.org/driver-api/nvmem.html">non-volatile memory</a>, which can be accessed as shown below:</p>
+<pre><code class="language-console"># dd if=/sys/bus/i2c/devices/0-0050/eeprom bs=1 count=512 | xxd | head -n3
+512+0 records in
+512+0 records out
+00000000: 4f9e 6683 3110 476e c866 06a0 2afe dd0e  O.f.1.Gn.f..*...
+00000010: 554d 9a46 5354 4d50 0100 0000 1900 0000  UM.FSTMP........
+00000020: 0d00 0000 0000 0000 0300 0700 0600 0100  ................
+</code></pre>
+<p>The MMA7455L accelerometer and LTC2487 analogue-to-digital converter must also be hiding as I2C devices somewhere on the board. But all I wanted to see was the I2C bus working, so I'll leave them as an exercise for the reader 😜.</p>
+<h4 id="lradc">LRADC</h4>
+<p>LRADC is a 6-channel 12-bit Low-Resolution Analog-to-Digital Converter. On the EVK board it is used to connect multiple push-buttons arranged as a resistor ladder to a single analogue input. Unfortunately, it did not work out of the box even though the driver <em>mxs-lradc-adc.c</em> is fairly simple. When probing IRQs, it comes down to using <code>MX23_LRADC_TS_IRQ = 0</code> from <em>mxs-lradc.c</em> as a virtual IRQ, which the Linux kernel does not allow. The problem is reported as <code>0 might be an invalid IRQ number</code> below:</p>
+<pre><code class="language-console">[   13.940000] ------------[ cut here ]------------
+[   13.940000] WARNING: CPU: 0 PID: 1 at drivers/base/platform.c:450 __platform_get_irq_byname+0xb4/0xd0
+[   13.950000] 0 might be an invalid IRQ number
+...
+[   14.140000] softirqs last disabled at (339663): [&lt;c00201e0&gt;] __irq_exit_rcu+0x12c/0x164
+[   14.150000] ---[ end trace 0000000000000000 ]---
+[   14.170000] input: mxs-lradc-ts as /devices/soc0/80000000.apb/80040000.apbx/80050000.lradc/mxs-lradc-ts/input/input0
+</code></pre>
+<p>Since the virtual IRQ will be remapped to a real one <a href="https://elixir.bootlin.com/linux/v6.6.143/source/drivers/iio/adc/mxs-lradc-adc.c#L746">here</a>:</p>
+<pre><code class="language-c">    for (i = 0; i &lt; 3; i++) {
+        irq = platform_get_irq_byname(pdev, mxs_lradc_ts_irq_names[i]);
+        if (irq &lt; 0)
+            return irq;
+
+        virq = irq_of_parse_and_map(node, irq);
+</code></pre>
+<p>Showing the warning above would have been enough. Instead, the Linux kernel forbids using IRQ number 0. This is fixed by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0016-platform-allow-virtual-irqs.patch">patch</a>, leaving the user with the warning only.</p>
+<h5 id="buttons">Buttons</h5>
+<p>To enable the buttons, this patch is required with a precalculated voltage for each button press (see the values marked blue in the calculation below): <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/patches/linux/6.6.143/0001-adc-keys.patch">ADC keys patch</a>. Below is the corresponding part of the <a href="https://www.nxp.com/downloads/en/schematics/iMX23_EVK16_DesignFiles.msi">schematics</a>: <img width="1727" height="355" alt="Screenshot from 2026-07-19 11-08-39" src="https://github.com/user-attachments/assets/a91956a1-8243-4e8d-b5b3-98a5951b2d37" /></p>
+<p>And the maths I did: <img width="1245" height="402" alt="Screenshot from 2026-07-19 11-06-14" src="https://github.com/user-attachments/assets/3eab29df-6e19-4004-83d4-2f69663e6fbd" /></p>
+<p>While it was straightforward to derive the voltages from the resistor ladder values given in the schematics, it was not easy to work out why the buttons still did not work as expected. <code>evtest</code> was showing some strange behaviour: the wrong button or two buttons pressed simultaneously. I found the explanation in the reference manual:</p>
+<p><img width="831" height="92" alt="Screenshot from 2026-07-18 23-07-11" src="https://github.com/user-attachments/assets/09a5d8c5-5f7b-421b-bd06-f71a60c7d972" /></p>
+<p>Since the ADC reference voltage is 3.3V, I needed to switch the voltage scale from 1.85V to VDDIO, see <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/rootfs-overlay/etc/init.d/S90buttons">here</a>. Having done that, all the buttons started working fine:</p>
+<pre><code class="language-console"># evtest
+No device specified, trying to scan all of /dev/input/event*
+Available devices:
+/dev/input/event0:  mxs-lradc-ts
+/dev/input/event1:  adc-keys
+Select the device event number [0-1]: 1
+Input driver version is 1.0.1
+Input device ID: bus 0x19 vendor 0x1 product 0x1 version 0x100
+Input device name: &quot;adc-keys&quot;
+Supported events:
+  Event type 0 (EV_SYN)
+  Event type 1 (EV_KEY)
+    Event code 2 (KEY_1)
+    Event code 3 (KEY_2)
+    Event code 4 (KEY_3)
+    Event code 28 (KEY_ENTER)
+    Event code 103 (KEY_UP)
+    Event code 105 (KEY_LEFT)
+    Event code 106 (KEY_RIGHT)
+    Event code 108 (KEY_DOWN)
+Properties:
+Testing ... (interrupt to exit)
+Event: time 16799.207656, type 1 (EV_KEY), code 108 (KEY_DOWN), value 1
+Event: time 16799.207656, -------------- SYN_REPORT ------------
+Event: time 16799.316531, type 1 (EV_KEY), code 108 (KEY_DOWN), value 0
+Event: time 16799.316531, -------------- SYN_REPORT ------------
+Event: time 16799.536468, type 1 (EV_KEY), code 105 (KEY_LEFT), value 1
+Event: time 16799.536468, -------------- SYN_REPORT ------------
+Event: time 16799.646437, type 1 (EV_KEY), code 105 (KEY_LEFT), value 0
+Event: time 16799.646437, -------------- SYN_REPORT ------------
+Event: time 16799.976531, type 1 (EV_KEY), code 106 (KEY_RIGHT), value 1
+Event: time 16799.976531, -------------- SYN_REPORT ------------
+Event: time 16800.086437, type 1 (EV_KEY), code 106 (KEY_RIGHT), value 0
+Event: time 16800.086437, -------------- SYN_REPORT ------------
+Event: time 16800.416531, type 1 (EV_KEY), code 28 (KEY_ENTER), value 1
+Event: time 16800.416531, -------------- SYN_REPORT ------------
+Event: time 16800.526437, type 1 (EV_KEY), code 28 (KEY_ENTER), value 0
+Event: time 16800.526437, -------------- SYN_REPORT ------------
+</code></pre>
+<p><code>cat /sys/bus/iio/devices/iio:device0/in_voltage0_raw</code> can be used to verify what the ADC is actually seeing.</p>
+<h5 id="on-die-temperature-sensor">On-die temperature sensor</h5>
+<p>The on-die temperature sensor works after enabling IIO (industrial IO). See the additional Linux kernel configuration below:</p>
+<pre><code>CONFIG_IIO=y
+CONFIG_MXS_LRADC_ADC=y
+CONFIG_HWMON=y
+CONFIG_SENSORS_IIO_HWMON=y
+</code></pre>
+<p>Then in the Linux console:</p>
+<pre><code class="language-console"># raw=`cat /sys/bus/iio/devices/iio:device0/in_temp8_raw`
+# offset=`cat /sys/bus/iio/devices/iio:device0/in_temp8_offset`
+# scale=`cat /sys/bus/iio/devices/iio:device0/in_temp8_scale`
+awk -v raw=$raw -v offset=$offset -v scale=$scale 'BEGIN { printf &quot;Temperature is %.02f degC\n&quot;, (raw + (offset))*scale }'
+Temperature is 28.93 degC
+</code></pre>
+<h4 id="dcp-crypto">DCP crypto</h4>
+<p>Since I wanted the EVK booting from NAND, I needed to make the DCP crypto hardware usable with the kobs-ng tool. Luckily, I found all the required patches:
+1. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0017-dcp-to-support-otp-crypto-keys-1of2.patch</a>
+2. <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch">https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/linux/6.6.143/0018-dcp-to-support-otp-crypto-keys-2of2.patch</a> credited to <a href="https://github.com/usbarmory/mxs-dcp">usbarmory</a>. I 'married' the first patch with usbarmory's one and adapted them slightly to Linux kernel 6.6.y.</p>
+<h4 id="sound-driver">Sound driver</h4>
+<p>Sound drivers for old Linux kernels (&lt;4.3) can be found here <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> and here <a href="https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5">https://github.com/archlinuxarm/PKGBUILDs/tree/c057ac8267323a3b71394593a742887334fe5275/core/linux-armv5</a>. Due to a massive rework of the ALSA framework in the Linux kernel around 4.4, these patches cannot be reapplied as-is.</p>
+<p>I found enough information about the ALSA system in the <a href="https://bootlin.com/doc/training/audio/audio-slides.pdf">Audio with embedded Linux training</a> to rework the <a href="https://github.com/ITserve/imx23-audio">https://github.com/ITserve/imx23-audio</a> patches for Linux kernel 6.6.y. Among the biggest changes was the machine driver, which had to make way for the <a href="https://www.kernel.org/doc/Documentation/devicetree/bindings/sound/simple-card.txt">simple audio card</a>. Many obsolete structures and function calls also had to be replaced with newer ones, but the rest of the driver remained almost unchanged.</p>
+<p>When applying the new patches, all *mxs-builtin-audio*.patch files and 0001-rtc-nvmem.patch from <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/linux/6.6.143">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/linux/6.6.143</a> are required. The audio driver sets a few bits in RTC (yes!) registers to achieve better sound quality. I moved this to the RTC driver (see function <code>stmp3xxx_nvmem_write()</code>) since I wanted the RTC and sound driver to be usable simultaneously. (I have not tried to find a better solution for this, sorry.)</p>
+<pre><code class="language-console"># uname -a
+Linux buildroot 6.6.143 #1 Fri Jul 10 19:31:32 NZST 2026 armv5tejl GNU/Linux
+
+# aplay -L
+null
+    Discard all samples (playback) or generate zero samples (capture)
+default:CARD=mxsbuiltinaudio
+    mxs-builtin-audio, mxs-builtin-cpu-dai-mxs-builtin-codec-dai mxs-builtin-codec-dai
+    Default Audio Device
+sysdefault:CARD=mxsbuiltinaudio
+    mxs-builtin-audio, mxs-builtin-cpu-dai-mxs-builtin-codec-dai mxs-builtin-codec-dai
+    Default Audio Device
+
+# amixer
+Simple mixer control 'Mic PGA',0
+  Capabilities: cvolume cvolume-joined
+  Capture channels: Mono
+  Limits: Capture 0 - 3
+  Mono: Capture 1 [33%]
+Simple mixer control '3D effect',0
+  Capabilities: enum
+  Items: 'Off' 'Low' 'Medium' 'High'
+  Item0: 'Off'
+Simple mixer control 'ADC',0
+  Capabilities: cvolume
+  Capture channels: Front Left - Front Right
+  Limits: Capture 0 - 255
+  Front Left: Capture 254 [100%]
+  Front Right: Capture 254 [100%]
+Simple mixer control 'ADC PGA',0
+  Capabilities: cvolume cswitch cswitch-joined
+  Capture channels: Front Left - Front Right
+  Limits: Capture 0 - 15
+  Front Left: Capture 2 [13%] [on]
+  Front Right: Capture 2 [13%] [on]
+Simple mixer control 'DAC',0
+  Capabilities: pvolume pswitch
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 15
+  Mono:
+  Front Left: Playback 15 [100%] [off]
+  Front Right: Playback 15 [100%] [off]
+Simple mixer control 'HP',0
+  Capabilities: pvolume
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 127
+  Mono:
+  Front Left: Playback 115 [91%]
+  Front Right: Playback 115 [91%]
+Simple mixer control 'HP Mux',0
+  Capabilities: enum
+  Items: 'DAC Out' 'Line In 1'
+  Item0: 'DAC Out'
+Simple mixer control 'Left ADC Mux',0
+  Capabilities: enum
+  Items: 'Mic' 'Line In 1' 'Head Phone' 'Line In 2'
+  Item0: 'Mic'
+Simple mixer control 'Right ADC Mux',0
+  Capabilities: enum
+  Items: 'Mic' 'Line In 1' 'Head Phone' 'Line In 2'
+  Item0: 'Mic'
+</code></pre>
+<p>Playback sometimes got stuck, possibly due to <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363485">Erratum 2349</a>. The hang was fixed by starting DMA before setting the audio <code>RUN</code> bit and stopping DMA before stopping the converter.</p>
+<h4 id="tv-out">TV-out</h4>
+<p>TV-out did not work in the initial Olinuxino test and did not seem to be the highest priority. But leaving yet another peripheral unsupported would have been too easy, wouldn't it? 😜 So, for the first time in my life I've asked AI for help on driver forward-porting and writing this chapter. Jumping ahead, after leaving the AI to work for 15 minutes, I booted the board with the new driver. On the first attempt, I could already see a blurry Linux penguin in the wrong colours! It took only another hour to fix the colours and centre the picture.</p>
+<p>Of course, having patches is not quite the same as having a picture on the TV. Composite output has been confirmed using a composite-to-HDMI converter and the <a href="https://github.com/xaelsouth/fbdoom">xaelsouth port of fbDoom</a>. But fbDoom is another story and deserves an article of its own. </p>
+<blockquote>
+<p>[!NOTE]
+Not being a Linux driver developer or a graphics stack specialist, I don't want to know how long I would have spent doing that myself. Days, weeks, a month?.. So, hell yeah — I was impressed too!</p>
+</blockquote>
+<p>Below I have attached AI's own work description.</p>
+<p>The Buildroot branch now includes patches for composite output. The old Linux 2.6.31-era TV encoder support was forward-ported and adapted to the current DRM/KMS driver. The encoder register programming also refers to the i.MX23 reference manual and the older <a href="https://github.com/xobs/linux-2.6.28.mx233-falconwing/blob/master/arch/arm/mach-stmp3xxx/tvenc.c">Freescale BSP tvenc driver</a>.</p>
+<p>The patches add a TV encoder DRM bridge and composite connector, along with the required clocks and device-tree connections for the Olinuxino and EVK. The LCDIF converts the framebuffer from RGB to YCbCr 4:2:2, generates an interlaced BT.656 stream and feeds it to the on-chip TV encoder. The driver provides PAL-B at 720x576 and NTSC-M at 720x480.</p>
+<p>The output is selected at boot with the <code>mxsfb.output</code> kernel parameter: <code>lcd</code>, <code>tv_pal</code> or <code>tv_ntsc</code>. The Olinuxino configuration selects PAL by default; the EVK configuration selects the LCD by default. To change the default, edit the <code>CONFIG_CMDLINE</code> setting in the board's <code>linux-tvenc.fragment</code> and rebuild. The EVK selects either the LCD or TV output, not both at once.</p>
+<h2 id="known-issues-and-open-questions">Known issues and open questions</h2>
+<ul>
+<li><strong>NAND:</strong> <a href="#8k-nand-page-size">8k-page support</a> was patched but not tested
+  on hardware. The article's NAND programming and erase commands destroy data.</li>
+<li><strong>Olinuxino:</strong> the results at the top are initial SD-boot findings; several
+  peripherals remain untested on that board.</li>
+</ul>
+<h2 id="references">References</h2>
 <p>The references listed here are not intended to be exhaustive.</p>
 <ul>
 <li><a href="https://www.nxp.com/docs/en/reference-manual/IMX23RM.pdf">i.MX23 Applications Processor Reference Manual</a></li>
@@ -1359,8 +1424,8 @@ buildroot login:
 <li><a href="https://bootlin.com/doc/training/audio/audio-slides.pdf">Audio with embedded Linux training by Bootlin</a></li>
 <li><a href="https://github.com/ITserve/imx23-audio">iMX23 audio driver by Michal Ulianko</a></li>
 </ul>
-<h1 id="post-scriptum">Post scriptum</h1>
-<p>It would have been boring or even impossible to write this article without looping 
+<h2 id="post-scriptum">Post scriptum</h2>
+<p>It would have been boring or even impossible to write this article without looping
 <a href="https://www.youtube.com/watch?v=CrP_Rf5gFes&amp;t=3901s"><img alt="SYNTHWAVE TITANS: RAGE &amp; RHYTHM [VOL.2]" src="https://www.youtube.com/watch?v=CrP_Rf5gFes&amp;t=3901s/0.jpg" /></a>!</p>
 <hr><p><small><a href="https://github.com/xaelsouth/xaelsouth.github.io/wiki/On-iMX23">Edit this page in the wiki</a></small></p></main>
 </body>
