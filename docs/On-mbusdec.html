@@ -27,7 +27,9 @@ and produce newline-delimited JSON.</p>
 checks the received packet and removes link-layer CRC bytes. mbusdec parses
 the resulting telegram, identifies the meter, and decodes supported application
 records. The library also supports wired M-Bus long frames, though the CLI
-currently accepts only the rtl-wmbus stream format.</p>
+currently accepts only the rtl-wmbus stream format. For other receivers, the
+library can also validate and remove CRCs from raw wireless Format A and B
+frames.</p>
 <blockquote>
 <p>[!NOTE]
 mbusdec was written and tested by AI as an experiment using the EN 13757
@@ -61,12 +63,17 @@ for build options, tests and platform-specific instructions.</p>
 example, a decoded telegram contains identities and records where these are
 available. <code>decode_status</code> describes the decoder outcome; it is distinct from
 the meter's transport status. Receiver RSSI values are included when available,
-but are not calibrated dBm measurements.</p>
+but are not calibrated dBm measurements. The top-level <code>timestamp</code> is copied
+from the receiver when available, including on errors. It is not converted or
+given a timezone: rtl-wmbus uses local time on Unix and UTC on Windows.</p>
 <p>Not every reception necessarily decodes: this sample can also produce a
 receiver-reported CRC failure or an unsupported telegram. mbusdec reports
 these as JSON errors, continues processing subsequent lines, and exits nonzero
 at end of input if any line failed. It trusts rtl-wmbus's CRC status because
-the CRC bytes have already been removed.</p>
+the CRC bytes have already been removed.
+<code>--rtl-wmbus</code> explicitly selects the same stream format, but it is optional:
+the stream is already the CLI default. It does not autodetect raw Format A or
+B frames.</p>
 <p>For a live T1/C1 receiver, the same decoder can follow <code>rtl_sdr</code> and
 rtl-wmbus:</p>
 <pre><code class="language-sh">rtl_sdr -f 868.95M -s 1600000 - 2&gt;/dev/null \
@@ -97,12 +104,43 @@ to process all telegrams, and omit <code>--keys</code> when keys are not needed.
 Malformed input, CRC failures and headers that cannot be inspected are still
 reported as errors. Filter addresses in the example are illustrative: replace
 them with the identities of the meters you want to monitor.</p>
+<p>A key file can also be supplied as the filter file. <code>--filter</code> ignores the
+contents of <code>key</code>, <code>keys</code>, and <code>type</code> fields, though the file must still be
+valid JSON. Supply the file separately with <code>--keys</code> to validate and use its
+keys for decryption:</p>
+<pre><code class="language-sh">./mbusdec/build/mbusdec --keys keys.json --filter keys.json
+</code></pre>
+<p>The decoder tries matching keys in order, up to 16 per telegram. An incorrect
+matching key does not trigger a fallback to a different address. Decryption
+verification is not authentication; do not treat successful decryption or a
+valid CRC as proof that a telegram is authentic.</p>
 <h2 id="using-the-library">Using the library</h2>
 <p>mbusdec can also be linked into a C application without the CLI. The build
 produces <code>libmbus.a</code> and the public interface is in <code>mbus.h</code>. The library
 accepts wired long frames and CRC-stripped wireless telegrams, supports
-selected encrypted transport modes, and lets applications register
-manufacturer-specific decoders. See the
+selected encrypted transport modes, and lets applications register up to 32
+manufacturer-specific decoders.</p>
+<p>An application can install a process-global key retrieval callback with
+<code>mbus_set_key_provider</code>. The callback receives the available application and
+link identities and the synchronization state (which can be unknown), and
+returns up to 16 AES keys. It is called after successful header parsing when
+no explicit keys were passed, including for plaintext telegrams. Explicit keys
+take precedence; failed explicit keys do not trigger the callback. The
+standalone CLI does not install a provider: this hook is for applications
+embedding the library. Provider registration and decoding with a provider are
+single-threaded. See the
+<a href="https://github.com/xaelsouth/mbusdec/blob/master/examples/key_provider.c">key provider example</a>
+for registration and removal.</p>
+<p>For raw wireless frames with link CRCs, select
+<code>MBUS_WIRELESS_FORMAT_A</code> or <code>MBUS_WIRELESS_FORMAT_B</code> when decoding or
+inspecting headers. The caller must know the format; the library does not
+autodetect it. Input starts at the L field and includes CRC bytes, but excludes
+the radio preamble and synchronization word. Alternatively,
+<code>mbus_wireless_remove_crc</code> validates and converts the frame to the
+CRC-stripped representation accepted as <code>MBUS_WIRELESS</code>. CRC validation
+happens before header parsing and key retrieval. These raw formats are
+available through the library API, not the rtl-wmbus CLI stream.</p>
+<p>See the
 <a href="https://github.com/xaelsouth/mbusdec#library">library documentation and examples</a>
 for the API, supported records and limitations.</p>
 <h2 id="further-reading">Further reading</h2>
