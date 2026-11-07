@@ -1397,7 +1397,7 @@ Simple mixer control 'Right ADC Mux',0
 <p>[!NOTE]
 Not being a Linux driver developer or a graphics stack specialist and not knowing NTSC or PAL specifics, I don't want to know how long I would have spent doing that myself: days, weeks, months, a year?.. So, hell yeah - I was impressed too!</p>
 </blockquote>
-<p>Below I have attached AI's own work description.</p>
+<p>Below I attached AI's own work description.</p>
 <p>The Buildroot branch now includes patches for composite output. The old Linux 2.6.31-era TV encoder support was forward-ported and adapted to the current DRM/KMS driver. The encoder register programming also refers to the i.MX23 reference manual and the older <a href="https://github.com/xobs/linux-2.6.28.mx233-falconwing/blob/master/arch/arm/mach-stmp3xxx/tvenc.c">Freescale BSP tvenc driver</a>.</p>
 <p>The patches add a TV encoder DRM bridge and composite connector, along with the required clocks and device-tree connections for the Olinuxino and EVK. The LCDIF converts the framebuffer from RGB to YCbCr 4:2:2, generates an interlaced BT.656 stream and feeds it to the on-chip TV encoder. The driver provides PAL-B at 720x576 and NTSC-M at 720x480.</p>
 <p>The output is selected at boot with the <code>mxsfb.output</code> kernel parameter: <code>lcd</code>, <code>tv_pal</code> or <code>tv_ntsc</code>. The Olinuxino configuration selects PAL by default; the EVK configuration selects the LCD by default. To change the default, edit the <code>CONFIG_CMDLINE</code> setting in the board's <code>linux-tvenc.fragment</code> and rebuild. The EVK selects either the LCD or TV output, not both at once.</p>
