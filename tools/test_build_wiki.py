@@ -39,7 +39,10 @@ class WikiNavigationTest(unittest.TestCase):
                 "```text\n## Not a heading\n```\n",
                 encoding="utf-8",
             )
-            (wiki / "Other.md").write_text("# Other\n\nNo subheadings.\n", encoding="utf-8")
+            (wiki / "Other.md").write_text(
+                "# Other\n\n<!-- tags: C++, C#, linux, Linux -->\n\nNo subheadings.\n",
+                encoding="utf-8",
+            )
 
             build_wiki.main(wiki, out, "owner/repo")
 
@@ -47,14 +50,23 @@ class WikiNavigationTest(unittest.TestCase):
             page.feed((out / "index.html").read_text(encoding="utf-8"))
             self.assertEqual(page.heading_ids, ["first", "child", "first_1"])
             self.assertEqual(
-                page.nav_links, ["index.html", "Other.html", "#first", "#child", "#first_1"]
+                page.nav_links,
+                ["index.html", "Other.html", "tags.html", "#first", "#child", "#first_1"],
             )
             other_html = (out / "Other.html").read_text(encoding="utf-8")
             other = PageParser()
             other.feed(other_html)
-            self.assertEqual(other.nav_links, ["index.html", "Other.html"])
+            self.assertEqual(other.nav_links, ["index.html", "Other.html", "tags.html"])
             self.assertNotIn("On this page", other_html)
+            self.assertNotIn("tags:", other_html)
             self.assertIn("https://github.com/owner/repo/wiki/Other", other_html)
+            tags_html = (out / "tags.html").read_text(encoding="utf-8")
+            self.assertIn('id="c"', tags_html)
+            self.assertIn('id="c-2"', tags_html)
+            self.assertIn('aria-label="C#: 1 article"', tags_html)
+            self.assertIn("linux <span class=\"tag-count\">(1)</span>", tags_html)
+            self.assertIn("Other", tags_html)
+            self.assertIn("tags.html", (out / "sitemap.xml").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -33,17 +33,93 @@ td,th{{border:1px solid #d0d7de;padding:.3em .6em}}img{{max-width:100%}}
   nav{{flex-basis:100%;position:static;max-height:none}}
   main{{min-width:0;padding:1em}}
 }}
+.tag-cloud{{display:flex;flex-wrap:wrap;align-items:baseline;gap:.35em 1em}}
+.tag-cloud a{{text-decoration:none}}
+.tag-cloud a:hover{{text-decoration:underline}}
+.tag-count{{font-size:.7em;color:#57606a}}
 </style>
 </head>
 <body>
 <nav>{nav}</nav>
 <main>{body}
-<hr><p><small><a href="{edit}">Edit this page in the wiki</a></small></p></main>
+{footer}</main>
 </body>
 </html>
 """
 
 LINK = re.compile(r'href="([^"#?:]+)((?:#[^"]*)?)"')
+TAGS = re.compile(r"<!--\s*tags:\s*(.*?)\s*-->\s*", re.I | re.S)
+
+
+def extract_tags(text):
+    match = TAGS.search(text)
+    if not match:
+        return [], text
+    tags = []
+    seen = set()
+    for tag in match[1].split(","):
+        tag = tag.strip()
+        if tag and tag.casefold() not in seen:
+            tags.append(tag)
+            seen.add(tag.casefold())
+    return tags, text[:match.start()] + text[match.end():]
+
+
+def tag_id(tag):
+    return re.sub(r"[^a-z0-9]+", "-", tag.casefold()).strip("-") or "tag"
+
+
+def render_tag_page(articles):
+    by_tag = {}
+    for slug, title, tags in articles:
+        for tag in tags:
+            by_tag.setdefault(tag.casefold(), (tag, []))[1].append((slug, title))
+
+    tags = sorted(by_tag.values(), key=lambda item: item[0].casefold())
+    ids = {}
+    used_ids = set()
+    for tag, _ in tags:
+        base = tag_id(tag)
+        candidate = base
+        suffix = 2
+        while candidate in used_ids:
+            candidate = f"{base}-{suffix}"
+            suffix += 1
+        ids[tag.casefold()] = candidate
+        used_ids.add(candidate)
+
+    counts = [len(articles) for _, articles in tags]
+    minimum, maximum = min(counts, default=0), max(counts, default=0)
+    cloud = []
+    sections = []
+    for tag, articles in tags:
+        count = len(articles)
+        size = 1.0 if maximum == minimum else 1.0 + 0.8 * (count - minimum) / (maximum - minimum)
+        anchor = ids[tag.casefold()]
+        article_label = "article" if count == 1 else "articles"
+        cloud.append(
+            f'<a href="#{anchor}" style="font-size:{size:.2f}em" '
+            f'aria-label="{html.escape(tag)}: {count} {article_label}">'
+            f'{html.escape(tag)} <span class="tag-count">({count})</span></a>'
+        )
+        links = "".join(
+            f'<li><a href="{quote(slug)}.html">{html.escape(title)}</a></li>'
+            for slug, title in articles
+        )
+        sections.append(
+            f'<section><h2 id="{anchor}">{html.escape(tag)} '
+            f'<small>({count})</small></h2><ul>{links}</ul></section>'
+        )
+
+    if cloud:
+        body = (
+            "<h1>Tags</h1><p>Browse articles by topic. Larger tags appear on more articles.</p>"
+            f'<div class="tag-cloud" aria-label="Article tags">{"".join(cloud)}</div>'
+            f'{"".join(sections)}'
+        )
+    else:
+        body = "<h1>Tags</h1><p>No article tags have been added yet.</p>"
+    return body
 
 
 def render(text):
@@ -80,12 +156,15 @@ def main(wiki, out, repo):
         old.unlink()
     side = wiki / "_Sidebar.md"
     nav = render(side.read_text(encoding="utf-8"))[0] if side.exists() else ""
+    nav += '<p><a href="tags.html">Browse tags</a></p>'
     names = []
+    articles = []
     for src in sorted(wiki.glob("*.md")):
         if src.name.startswith("_"):
             continue
         name = src.stem
-        body, toc = render(src.read_text(encoding="utf-8"))
+        tags, source = extract_tags(src.read_text(encoding="utf-8"))
+        body, toc = render(source)
         page_nav = nav
         if toc:
             page_nav += '<section aria-label="On this page"><h3>On this page</h3>' + toc + "</section>"
@@ -98,10 +177,31 @@ def main(wiki, out, repo):
             canonical=BASE_URL + ("" if slug == "index" else quote(slug) + ".html"),
             nav=page_nav,
             body=body,
-            edit=f"https://github.com/{repo}/wiki/{quote(name)}",
+            footer=(
+                '<hr><p><small><a href="'
+                f'https://github.com/{repo}/wiki/{quote(name)}'
+                '">Edit this page in the wiki</a></small></p>'
+            ),
         )
         (out / f"{slug}.html").write_text(page, encoding="utf-8")
         names.append(slug)
+        if tags:
+            articles.append((slug, title, tags))
+
+    tags_page = PAGE.format(
+        title=html.escape(f"Tags – {SITE}"),
+        description="Browse wiki articles by topic.",
+        canonical=BASE_URL + "tags.html",
+        nav=nav,
+        body=render_tag_page(articles),
+        footer=(
+            '<hr><p><small>Article tags are maintained in the '
+            f'<a href="https://github.com/{repo}/wiki">GitHub wiki</a>.'
+            "</small></p>"
+        ),
+    )
+    (out / "tags.html").write_text(tags_page, encoding="utf-8")
+    names.append("tags")
     today = date.today().isoformat()
     urls = "".join(
         f"<url><loc>{BASE_URL}{'' if s == 'index' else quote(s) + '.html'}</loc>"
