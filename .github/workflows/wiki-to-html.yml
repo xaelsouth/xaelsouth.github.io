@@ -4,7 +4,7 @@ on:
   gollum: # wiki page created or edited
   workflow_dispatch:
   push:
-    paths: [tools/build_wiki.py, .github/workflows/wiki-to-html.yml]
+    paths: [tools/build_wiki.py, tools/test_build_wiki.py, .github/workflows/wiki-to-html.yml]
 
 permissions:
   contents: write
@@ -26,6 +26,7 @@ jobs:
         with:
           python-version: "3.x"
       - run: pip install markdown
+      - run: python -m unittest discover -s tools -p 'test_*.py'
       - run: python tools/build_wiki.py wiki docs "$GITHUB_REPOSITORY"
       - name: Commit changes
         run: |

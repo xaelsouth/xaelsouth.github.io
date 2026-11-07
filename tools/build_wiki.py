@@ -22,11 +22,17 @@ PAGE = """<!DOCTYPE html>
 <link rel="canonical" href="{canonical}">
 <style>
 body{{font:16px/1.6 system-ui,sans-serif;margin:0;display:flex;flex-wrap:wrap}}
-nav{{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa}}
+nav{{flex:0 0 14em;padding:1em 1.5em;background:#f6f8fa;
+    position:sticky;top:0;max-height:100vh;overflow-y:auto;box-sizing:border-box}}
+nav ul{{padding-left:1.2em}}
 main{{flex:1 1 30em;max-width:60em;padding:1em 2em}}
 pre{{background:#f6f8fa;padding:1em;overflow:auto}}
 code{{background:#f6f8fa}}table{{border-collapse:collapse}}
 td,th{{border:1px solid #d0d7de;padding:.3em .6em}}img{{max-width:100%}}
+@media(max-width:700px){{
+  nav{{flex-basis:100%;position:static;max-height:none}}
+  main{{min-width:0;padding:1em}}
+}}
 </style>
 </head>
 <body>
@@ -47,7 +53,10 @@ def render(text):
     text = re.sub(
         r"\[\[([^\]]+)\]\]", lambda m: f"[{m[1]}]({m[1].strip().replace(' ', '-')})", text
     )
-    md = markdown.Markdown(extensions=["fenced_code", "tables", "toc", "sane_lists"])
+    md = markdown.Markdown(
+        extensions=["fenced_code", "tables", "toc", "sane_lists"],
+        extension_configs={"toc": {"toc_depth": "2-6"}},
+    )
     out = md.convert(text)
     # Wiki-relative links -> .html (leave files like images/pdfs alone)
     out = LINK.sub(
@@ -56,7 +65,7 @@ def render(text):
         else f'href="{"index" if m[1] == "Home" else m[1]}.html{m[2]}"',
         out,
     )
-    return out
+    return out, md.toc if md.toc_tokens else ""
 
 
 def first_text(body):
@@ -70,13 +79,16 @@ def main(wiki, out, repo):
     for old in out.glob("*.html"):
         old.unlink()
     side = wiki / "_Sidebar.md"
-    nav = render(side.read_text(encoding="utf-8")) if side.exists() else ""
+    nav = render(side.read_text(encoding="utf-8"))[0] if side.exists() else ""
     names = []
     for src in sorted(wiki.glob("*.md")):
         if src.name.startswith("_"):
             continue
         name = src.stem
-        body = render(src.read_text(encoding="utf-8"))
+        body, toc = render(src.read_text(encoding="utf-8"))
+        page_nav = nav
+        if toc:
+            page_nav += '<section aria-label="On this page"><h3>On this page</h3>' + toc + "</section>"
         m = re.search(r"<h1[^>]*>(.*?)</h1>", body, re.S)
         title = re.sub(r"<[^>]+>", "", m[1]) if m else name.replace("-", " ")
         slug = "index" if name == "Home" else name
@@ -84,7 +96,7 @@ def main(wiki, out, repo):
             title=html.escape(f"{title} – {SITE}"),
             description=first_text(body),
             canonical=BASE_URL + ("" if slug == "index" else quote(slug) + ".html"),
-            nav=nav,
+            nav=page_nav,
             body=body,
             edit=f"https://github.com/{repo}/wiki/{quote(name)}",
         )
