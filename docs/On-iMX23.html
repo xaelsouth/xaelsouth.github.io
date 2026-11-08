@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- wiki-source-sha256: a1fd96fa56ba6ed9f2c9bd378fb8be5facbb77e26efe202cba7b35856148dfa3 -->
+<!-- wiki-source-sha256: 2edadf6d501199557f26681a13a40b64b34094b91d056fa42aeba20cc55600ea -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>On iMX23 – xaelsouth.github.io</title>
@@ -51,21 +51,24 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 </li>
 <li><a href="#hardware-and-driver-findings">Hardware and driver findings</a><ul>
 <li><a href="#u-boot">U-Boot</a><ul>
-<li><a href="#nand-driver">NAND driver</a></li>
+<li><a href="#nand">NAND</a></li>
 <li><a href="#otp-fuses">OTP fuses</a></li>
+<li><a href="#i2c">I2C</a></li>
+<li><a href="#usb-networking">USB networking</a></li>
+<li><a href="#spi-ethernet-in-u-boot">SPI Ethernet in U-Boot</a></li>
 </ul>
 </li>
 <li><a href="#linux">Linux</a><ul>
 <li><a href="#otp-fuses_1">OTP fuses</a></li>
 <li><a href="#usb">USB</a></li>
-<li><a href="#nand-driver_1">NAND driver</a><ul>
+<li><a href="#nand-driver">NAND driver</a><ul>
 <li><a href="#samsung-nand-erase-block-size-detection-bugs">Samsung NAND erase block size detection bugs</a></li>
 <li><a href="#ubifs-and-mlc-nand">UBIFS and MLC NAND</a></li>
 <li><a href="#gpmi-driver-bugs">GPMI driver bugs</a></li>
 </ul>
 </li>
 <li><a href="#spi-ethernet-enc28j60">SPI Ethernet ENC28J60</a></li>
-<li><a href="#i2c">I2C</a></li>
+<li><a href="#i2c_1">I2C</a></li>
 <li><a href="#lradc">LRADC</a><ul>
 <li><a href="#buttons">Buttons</a></li>
 <li><a href="#on-die-temperature-sensor">On-die temperature sensor</a></li>
@@ -84,7 +87,7 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 </ul>
 </div>
 </section></nav>
-<main><h1 id="on-imx23">On iMX23</h1><p class="page-meta">Estimated reading time: 25 minutes &middot; Page generated: <time datetime="2026-11-07T21:01:40+00:00">2026-11-07T21:01:40+00:00</time></p>
+<main><h1 id="on-imx23">On iMX23</h1><p class="page-meta">Estimated reading time: 25 minutes &middot; Page generated: <time datetime="2026-11-08T03:23:09+00:00">2026-11-08T03:23:09+00:00</time></p>
 <p>Why bother with such rusty stuff at all? Just for fun. Kind of attached to fixing broken or incomplete things. Perhaps two and a half people might find this helpful too.</p>
 <h2 id="hardware-and-tested-configuration">Hardware and tested configuration</h2>
 <p>Recently, whilst tidying up my stuff after moving into a new house, I found two boards: the <a href="https://www.olimex.com/Products/OLinuXino/iMX233/iMX233-OLinuXino-MINI/open-source-hardware">Olinuxino Mini</a> and the <a href="https://www.nxp.com/design/design-center/development-boards-and-designs/IMX23EVK">iMX233 EVK</a>. Both are built around the <a href="https://www.nxp.com/products/i.MX233">iMX233 SoC</a>, originally from Freescale, which later became part of NXP. The SoC has been officially obsolete for many years.</p>
@@ -94,7 +97,10 @@ For less patient readers: here is my <a href="https://github.com/xaelsouth/build
 </blockquote>
 <p>The experiments below use the Buildroot branch above; the captured EVK logs
 show Linux 6.6.143 and U-Boot 2024.04. Here is a quick summary; the Olinuxino
-results are from the initial SD-card boot, before the later driver work.</p>
+results are from the initial SD-card boot, before the later driver work.
+The patches originally developed for U-Boot 2024.04 were subsequently
+forward-ported to U-Boot 2027.01-rc1 in the
+<a href="https://github.com/xaelsouth/u-boot/tree/feature/imx23">i.MX23 U-Boot branch</a>.</p>
 <table>
 <thead>
 <tr>
@@ -171,7 +177,7 @@ Status: Unknown Error
 </code></pre>
 <p>That did not go well. Also, only <code>HTLC</code> appears on the debug console. Nothing else happens. The <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a> reveals that <strong>L</strong> is LOAD and <strong>C</strong> is CALL. BootROM loads and calls U-Boot SPL, which gets stuck there for an unknown reason, whilst the same code works when booting from SD card 😕. Nah, at least something works! (Reading this, one might recognise how low my expectations of finding something working already are.)</p>
 <p>... here I was digging for three half-days ...</p>
-<p>It turns out that something in U-Boot SPL must have gone wrong with the RAM size detection. After applying this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/uboot/2024.04/0008-no-ramsize-detection.patch">patch</a> I can finally see the U-Boot prompt, yay!</p>
+<p>It turns out that something in U-Boot SPL must have gone wrong with the RAM size detection. After applying this <a href="https://github.com/xaelsouth/u-boot/commit/f9df305085db21490f46c8233a0b88d0ac607b58">change</a> I can finally see the U-Boot prompt, yay!</p>
 <pre><code class="language-console">HTLCLJ
 
 U-Boot 2024.04 (Jul 10 2026 - 19:13:50 +1200)
@@ -195,6 +201,10 @@ Hit any key to stop autoboot:  0
 <p>The disadvantage of the patch mentioned above is that the correct RAM size must be hard-coded as <strong>PHYS_SDRAM_1_SIZE</strong>.</p>
 <p>The <code>boot</code> command would now boot Linux from SD card, which is not exactly what I wanted, since Ethernet would still be blocked by the SD card. Also, at this point I couldn't use NAND to load the Linux kernel because the MXS NAND driver for iMX23 was sort of unsupported. Bump.</p>
 <p>Another bump came when I wanted to enable the ENC28J60 driver in U-Boot. I remembered U-Boot having this driver (yes, I'm that old), but it had been removed a long time ago due to its incompatibility with device tree and poor quality. And I did not want to bring it back. Maybe later. Maybe. Later. Means never.</p>
+<blockquote>
+<p>[!NOTE]
+Update from "never" on 2026-Nov-08: I added both <a href="#usb-networking">USB gadget networking</a> and <a href="#spi-ethernet-in-u-boot">SPI Ethernet support</a> to the i.MX23 U-Boot branch.</p>
+</blockquote>
 <p>The solution to the 'where-to-get-the-Linux-kernel-to-load' problem was to create a bootstream with a preloaded <a href="https://docs.u-boot.org/en/v2024.04/usage/fit/howto.html">ITB file</a> containing Linux, an initial ramdisk and a device tree. I used the following bootstream template, the <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb tool</a> and a <strong>post-build.sh</strong> script to replace %WHATEVER% with the full paths of the associated files:</p>
 <pre><code class="language-text">options {
     driveTag = 0x00;
@@ -1121,7 +1131,7 @@ buildroot login:
 <p>8k pages are supported by this <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/common/patches/imx-kobs/0001-added-support-for-imx23-and-dcp.patch">patch</a>, as found and copied from <a href="https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944">https://community.nxp.com/t5/i-MX-Processors/how-to-config-imx233-work-with-8k-page-nand-flash-hynix/m-p/218944</a>. However, without hardware with that NAND page size I could not test it, so 8k page size support is more for completeness.</p>
 <h2 id="hardware-and-driver-findings">Hardware and driver findings</h2>
 <h3 id="u-boot">U-Boot</h3>
-<h4 id="nand-driver">NAND driver</h4>
+<h4 id="nand">NAND</h4>
 <p>An observant reader might have noticed <code>NAND:  4096 MiB</code> in the logs above. Well, those logs were captured after the Linux MXS GPMI driver was ported to U-Boot. Several half-days passed between that sentence and the following log with NAND bad blocks. A very rewarding log, though:</p>
 <blockquote>
 <p>[!WARNING]
@@ -1154,15 +1164,75 @@ Erasing at 0xfff80000 -- 100% complete.
 OK
 =&gt;
 </code></pre>
-<p>U-Boot patches related to the NAND subsystem can be found under <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04</a>. It is a rather long series of patches which, apart from adding NAND support, resolves a few compilation issues and provides a workaround for <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363760">Erratum 2847</a>, thankfully taken from the Linux kernel sources.</p>
+<p>The <a href="https://github.com/xaelsouth/u-boot/tree/feature/imx23">i.MX23 U-Boot branch</a> includes changes for the <a href="https://github.com/xaelsouth/u-boot/commit/02978abec3e510be9ddf0ec0b8de02e6c8a32449">MXS NAND driver</a> and <a href="https://github.com/xaelsouth/u-boot/commit/6d7a7027b4f0a3c183cfd217109c5df7381e3552">EVK NAND support</a>. The driver changes also provide a workaround for <a href="https://www.nxp.com/docs/pcn_attachments/15506_IMX23CE_Rev4.pdf#G363760">Erratum 2847</a>, thankfully taken from the Linux kernel sources.</p>
 <h4 id="otp-fuses">OTP fuses</h4>
-<p>Apparently there is <a href="https://github.com/nxp-imx/mfgtools">MfgTool</a> for burning OTP fuses. However, I never tried using MfgTool since I discovered that U-Boot can do this for me. U-Boot requires a little patch and can write and read fuses just fine: <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch">https://github.com/xaelsouth/buildroot/tree/feature/imx23/board/freescale/common/patches/uboot/2024.04/0002-ocotp-regs.patch</a>. The example below only reads a fuse; writing OTP fuses is irreversible, so do it carefully if you are going to try this.</p>
+<p>Apparently there is <a href="https://github.com/nxp-imx/mfgtools">MfgTool</a> for burning OTP fuses. However, I never tried using MfgTool since I discovered that U-Boot can do this for me. The <a href="https://github.com/xaelsouth/u-boot/commit/0163afefc61b2a4f4851b7dae050682a5d661d51">i.MX23 U-Boot branch enables OCOTP access</a> and can write and read fuses just fine. The example below only reads a fuse; writing OTP fuses is irreversible, so do it carefully if you are going to try this.</p>
 <pre><code class="language-console">=&gt; fuse read 0 0
 Reading bank 0:
 
 Word 0x00000000: 00049f01
 </code></pre>
 <p>No idea why bank 0 word 0, which is for customer use, is preprogrammed. Maybe Freescale as the board manufacturer was its own 'customer'.</p>
+<h4 id="i2c">I2C</h4>
+<p>The EVK's <a href="https://github.com/xaelsouth/u-boot/commit/71b005d35172cd099dd9437272bf32ead9d8f0ae">U-Boot configuration</a> uses GPIO bit-banging on the I2C pins because U-Boot has no driver for the i.MX23 hardware I2C controller. The 24LC128 EEPROM is at address <code>0x50</code>.</p>
+<p>List and select the bus, probe for devices, and read the first 32 bytes of the EEPROM:</p>
+<pre><code class="language-console">=&gt; i2c bus
+Bus 0:  i2c-gpio  (active 0)
+   50: eeprom@50, offset len 1, flags 0
+=&gt; i2c dev 0
+Setting bus to 0
+=&gt; i2c probe
+Valid chip addresses: 14 1D 50
+=&gt; i2c md 50 0.2 20
+0000: 4f 9e 66 83 31 10 47 6e c8 66 06 a0 2a fe dd 0e    O.f.1.Gn.f..*...
+0010: 55 4d 9a 46 53 54 4d 50 01 00 00 00 19 00 00 00    UM.FSTMP........
+</code></pre>
+<p>In the <code>i2c md</code> command, <code>0.2</code> specifies offset zero with a two-byte offset address, as required by the 24LC128; <code>20</code> is the hexadecimal byte count.</p>
+<h4 id="usb-networking">USB networking</h4>
+<p>The i.MX23 U-Boot branch provides a custom <a href="https://github.com/xaelsouth/u-boot/blob/feature/imx23/doc/usage/cmd/usbnet.rst"><code>usbnet</code> command</a>. It enables the USB Ethernet gadget and selects <code>usb_ether</code> as the active network interface, allowing the EVK to communicate with a USB host without using the ENC28J60. In this test, the gadget used RNDIS.</p>
+<p>Connect the EVK's USB device port to a Linux host and use a serial console for U-Boot. On the EVK, start the gadget, configure the addresses and ping the host:</p>
+<pre><code class="language-console">=&gt; usbnet
+=&gt; setenv ipaddr 192.168.7.2
+=&gt; setenv netmask 255.255.255.0
+=&gt; setenv serverip 192.168.7.1
+=&gt; ping 192.168.7.1
+Error: ethernet@0 No valid MAC address found.
+high speed config #2: 2 mA, Ethernet Gadget, using RNDIS
+USB RNDIS network up!
+Using usb_ether device
+</code></pre>
+<p>Once the host has detected the gadget, find its interface name with <code>ip link</code> and configure it. Replace <code>enxdeadbeef0000</code> below with the name shown on your host; use a different subnet if <code>192.168.7.0/24</code> is already in use.</p>
+<pre><code class="language-shell"># Host PC
+sudo ifconfig enxdeadbeef0000 192.168.7.1 netmask 255.255.255.0 up
+ping 192.168.7.2
+</code></pre>
+<p>The EVK's ping completed after the host interface was configured:</p>
+<pre><code class="language-console">host 192.168.7.1 is alive
+</code></pre>
+<p>The MAC-address error appeared in this test, but did not prevent the USB Ethernet connection from working. A successful <code>usbnet</code> command alone does not confirm that the host has enumerated the gadget or that networking works. The gadget uses the USB controller in device mode, so another gadget cannot use it at the same time; switching modes or gadgets requires removal and reinitialization which I have left unverified.</p>
+<h4 id="spi-ethernet-in-u-boot">SPI Ethernet in U-Boot</h4>
+<p>The i.MX23 U-Boot branch later gained <a href="https://github.com/xaelsouth/u-boot/commit/03674fd55826bdf96cd556a08f21ad82da36dffe">ENC28J60 support for the EVK</a>. Since SPI Ethernet shares pins with the SD card interface, U-Boot enables it when booted from USB or NAND, not SD. Connect the EVK's Ethernet port to the host and use a serial console for U-Boot.</p>
+<p>In this test, USB Ethernet was already active. The ENC28J60 had no valid MAC address, so I assigned it one and selected it explicitly:</p>
+<pre><code class="language-console">=&gt; net list
+eth0 : ethernet@0 00:00:00:00:00:00
+eth1 : usb_ether de:ad:be:ef:00:01 active
+=&gt; setenv ethaddr 02:23:00:00:00:01
+=&gt; setenv ethact ethernet@0
+=&gt; setenv ethrotate no
+=&gt; setenv ipaddr 192.168.200.2
+=&gt; setenv netmask 255.255.255.0
+=&gt; setenv serverip 192.168.200.1
+</code></pre>
+<p>Use a unique locally administered MAC address for <code>ethaddr</code>. Setting <code>ethrotate</code> to <code>no</code> prevents U-Boot from falling back to another Ethernet interface if the selected one fails.</p>
+<p>Configure the host's wired interface, replacing <code>eth0</code> with its actual name and choosing a different subnet if <code>192.168.200.0/24</code> is already in use:</p>
+<pre><code class="language-shell"># Host PC
+sudo ifconfig eth0 192.168.200.1 netmask 255.255.255.0 up
+</code></pre>
+<p>The EVK could then ping the host over SPI Ethernet:</p>
+<pre><code class="language-console">=&gt; ping 192.168.200.1
+Using ethernet@0 device
+host 192.168.200.1 is alive
+</code></pre>
 <h3 id="linux">Linux</h3>
 <p>Since we have a Linux console, it's time to check the hardware drivers.</p>
 <h4 id="otp-fuses_1">OTP fuses</h4>
@@ -1191,7 +1261,7 @@ Word 0x00000000: 00049f01
 </code></pre>
 <h4 id="usb">USB</h4>
 <p>The EVK hardware must be rewired a bit to test USB host mode. Since the USB host driver had been successfully tested with the Olinuxino Mini, I skipped it on the EVK.</p>
-<h4 id="nand-driver_1">NAND driver</h4>
+<h4 id="nand-driver">NAND driver</h4>
 <p>In the device tree I created multiple MTD partitions: boot, u-boot-env, rootfs and data.</p>
 <p>The bootstream will be programmed in the 'boot' partition. The other partitions can be used as their names suggest.</p>
 <h5 id="samsung-nand-erase-block-size-detection-bugs">Samsung NAND erase block size detection bugs</h5>
@@ -1309,7 +1379,7 @@ inetd
 [   68.000000] enc28j60 spi0.0 eth0: link up - Full duplex
 </code></pre>
 <p>Ethernet manages approximately 200 kB/s which is not much, but still an order of magnitude quicker than <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">serial port network</a> after its morning coffee.</p>
-<h4 id="i2c">I2C</h4>
+<h4 id="i2c_1">I2C</h4>
 <p>There is not too much to add. The 24LC128 EEPROM sits on the I2C bus at address 50. Its driver exposes it as <a href="https://docs.kernel.org/driver-api/nvmem.html">non-volatile memory</a>, which can be accessed as shown below:</p>
 <pre><code class="language-console"># dd if=/sys/bus/i2c/devices/0-0050/eeprom bs=1 count=512 | xxd | head -n3
 512+0 records in
