@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- wiki-source-sha256: 2edadf6d501199557f26681a13a40b64b34094b91d056fa42aeba20cc55600ea -->
+<!-- wiki-source-sha256: 2ba67fc4164517deb43f214476db8de3afaed26884447aa9e7f932e7020990d3 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>On iMX23 – xaelsouth.github.io</title>
@@ -87,7 +87,7 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 </ul>
 </div>
 </section></nav>
-<main><h1 id="on-imx23">On iMX23</h1><p class="page-meta">Estimated reading time: 25 minutes &middot; Page generated: <time datetime="2026-11-08T03:23:09+00:00">2026-11-08T03:23:09+00:00</time></p>
+<main><h1 id="on-imx23">On iMX23</h1><p class="page-meta">Estimated reading time: 25 minutes &middot; Page generated: <time datetime="2026-11-08T03:27:13+00:00">2026-11-08T03:27:13+00:00</time></p>
 <p>Why bother with such rusty stuff at all? Just for fun. Kind of attached to fixing broken or incomplete things. Perhaps two and a half people might find this helpful too.</p>
 <h2 id="hardware-and-tested-configuration">Hardware and tested configuration</h2>
 <p>Recently, whilst tidying up my stuff after moving into a new house, I found two boards: the <a href="https://www.olimex.com/Products/OLinuXino/iMX233/iMX233-OLinuXino-MINI/open-source-hardware">Olinuxino Mini</a> and the <a href="https://www.nxp.com/design/design-center/development-boards-and-designs/IMX23EVK">iMX233 EVK</a>. Both are built around the <a href="https://www.nxp.com/products/i.MX233">iMX233 SoC</a>, originally from Freescale, which later became part of NXP. The SoC has been officially obsolete for many years.</p>
@@ -205,7 +205,7 @@ Hit any key to stop autoboot:  0
 <p>[!NOTE]
 Update from "never" on 2026-Nov-08: I added both <a href="#usb-networking">USB gadget networking</a> and <a href="#spi-ethernet-in-u-boot">SPI Ethernet support</a> to the i.MX23 U-Boot branch.</p>
 </blockquote>
-<p>The solution to the 'where-to-get-the-Linux-kernel-to-load' problem was to create a bootstream with a preloaded <a href="https://docs.u-boot.org/en/v2024.04/usage/fit/howto.html">ITB file</a> containing Linux, an initial ramdisk and a device tree. I used the following bootstream template, the <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb tool</a> and a <strong>post-build.sh</strong> script to replace %WHATEVER% with the full paths of the associated files:</p>
+<p>The solution to 'where-to-get-the-Linux-kernel-to-load' problem was to create a bootstream with a preloaded <a href="https://docs.u-boot.org/en/v2024.04/usage/fit/howto.html">ITB file</a> containing Linux, an initial ramdisk and a device tree. I used the following bootstream template, the <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23/package/elftosb">elftosb tool</a> and a <strong>post-build.sh</strong> script to replace %WHATEVER% with the full paths of the associated files:</p>
 <pre><code class="language-text">options {
     driveTag = 0x00;
     flags = 0x01;
