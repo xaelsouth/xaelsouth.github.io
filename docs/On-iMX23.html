@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- wiki-source-sha256: d0b40dadf4bc8d1caa9070aa9b2b7ce3ebb755e6b6ebc78c07c6fa24d6fed20e -->
+<!-- wiki-source-sha256: fb6678d4f76453b580b38a5ca97ede56748d34f196029f0b4e1e9652527985eb -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>On iMX23 – xaelsouth.github.io</title>
@@ -41,7 +41,7 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 <li><a href="#imx233-evk">iMX233 EVK</a></li>
 </ul>
 </li>
-<li><a href="#getting-started-buildroot-and-sd-boot">Getting started: Buildroot and SD boot</a></li>
+<li><a href="#getting-started-buildroot-and-sd-card-boot">Getting started: Buildroot and SD card boot</a></li>
 <li><a href="#booting-via-usb">Booting via USB</a></li>
 <li><a href="#booting-via-nand">Booting via NAND</a><ul>
 <li><a href="#kobs-ng">kobs-ng</a></li>
@@ -91,7 +91,7 @@ td,th{border:1px solid #d0d7de;padding:.3em .6em}img{max-width:100%}
 </ul>
 </div>
 </section></nav>
-<main><h1 id="on-imx23">On iMX23</h1><p class="page-meta">Estimated reading time: 25 minutes &middot; Page generated: <time datetime="2026-11-10T12:37:58+00:00">2026-11-10T12:37:58+00:00</time></p>
+<main><h1 id="on-imx23">On iMX23</h1><p class="page-meta">Estimated reading time: 25 minutes &middot; Page generated: <time datetime="2026-11-17T10:59:46+00:00">2026-11-17T10:59:46+00:00</time></p>
 <p>Why bother with such rusty stuff at all? Just for fun. Kind of attached to fixing broken or incomplete things. Perhaps two and a half people might find this helpful too.</p>
 <h2 id="hardware-and-tested-configuration">Hardware and tested configuration</h2>
 <p>Recently, whilst tidying up my stuff after moving into a new house, I found two boards: the <a href="https://www.olimex.com/Products/OLinuXino/iMX233/iMX233-OLinuXino-MINI/open-source-hardware">Olinuxino Mini</a> and the <a href="https://www.nxp.com/design/design-center/development-boards-and-designs/IMX23EVK">iMX233 EVK</a>. Both are built around the <a href="https://www.nxp.com/products/i.MX233">iMX233 SoC</a>, originally from Freescale, which later became part of NXP. The SoC has been officially obsolete for many years.</p>
@@ -140,14 +140,14 @@ forward-ported to U-Boot 2027.01-rc1 in the
 <p>Sad, but SPI Ethernet is multiplexed with the SD card interface and can work only if booted from USB or NAND.</p>
 <p>The application UART works, so at least we could use <a href="https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol">SLIP</a> at no less than 115200 bps or approx. 10KB/s 😒. Anyway, check.</p>
 <p>While trying to test the accelerometer and EEPROM on the I2C bus, I quickly realised that constantly plugging and unplugging SD card during development really sucks. So I considered ordering a <a href="https://linux-automation.com/en/products/usb-sd-mux-fast.html">USB-SD-Mux FAST</a>. Even its price, approx. 120€, didn't put me off, but I would have to wait for several days, or maybe even weeks, until the package arrived from Europe! Anyway, right after spending 120€ I came up with the idea of trying USB boot. Unfortunately, due to the old hardware and not very well maintained drivers and tools, I ran into a whole bunch of bugs and issues. Below I am going to describe how I tackled them.</p>
-<h2 id="getting-started-buildroot-and-sd-boot">Getting started: Buildroot and SD boot</h2>
+<h2 id="getting-started-buildroot-and-sd-card-boot">Getting started: Buildroot and SD card boot</h2>
 <p>An initial search on the internet brought me to the <a href="https://openwrt.org/toh/olimex/imx233-olinuxino">OpenWRT iMX233 Olinuxino</a> page. The first impression was less than great. I would have expected a mature SoC platform, but looking at what is under <a href="https://openwrt.org/toh/olimex/imx233-olinuxino#working">'Working'</a>, it appears that almost only USB works?.. Considering 'last worked with 3.18, driver needs to be fwdported' - everything else might or might not work. To jump ahead: I just wanted to play a bit with the very cool <a href="https://directfb2.github.io">DirectFB2</a> project and the LCD attached to the iMX233 EVK to see what DirectFB2 could be useful for, but... Well, it's open source, so ~~save~~ help yourselves!</p>
 <p>The next stop for board support was <a href="https://buildroot.org">Buildroot</a>. Luckily enough, Buildroot includes configuration files for both boards. Having enough experience with Buildroot, I forked it at <a href="https://github.com/xaelsouth/buildroot/tree/feature/imx23">https://github.com/xaelsouth/buildroot/tree/feature/imx23</a>, cloned it and then kicked off the builds from the Buildroot checkout:</p>
 <pre><code class="language-shell">(make O=output/imx233_olinuxino olimex_imx233_olinuxino_defconfig &amp;&amp; cd output/imx233_olinuxino &amp;&amp; make -j$(nproc))
 (make O=output/imx233_evk imx23evk_defconfig &amp;&amp; cd output/imx233_evk &amp;&amp; make -j$(nproc))
 </code></pre>
 <p>Waiting ⌛ ☕ ⌛ ☕ ⌛ ...</p>
-<p>A few coffee cups later I was presented with an sdcard.img - one for each board - ready to write to SD card. The <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/readme.txt">iMX233 readme</a> and <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/olimex/imx233_olinuxino/readme.txt">Olinuxino readme</a> explain that better than I ever could. The Olinuxino uses a microSD card, whereas the iMX233 EVK wants a full-size SD card.</p>
+<p>A few coffee cups later I was confronted with sdcard.img - one for each board - ready to write to SD card. The <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/freescale/imx23evk/readme.txt">iMX233 readme</a> and <a href="https://github.com/xaelsouth/buildroot/blob/feature/imx23/board/olimex/imx233_olinuxino/readme.txt">Olinuxino readme</a> explain that better than I ever could. The Olinuxino uses a microSD card, whereas the iMX233 EVK wants a full-size SD card.</p>
 <h2 id="booting-via-usb">Booting via USB</h2>
 <p>According to the <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">Linux BSP guide</a>, the iMX23 ROM loads a so-called bootstream from the boot media configured by DIP switches or OTP fuses. It uses this to initialise the hardware and finally boot Linux. A bootstream is usually split into multiple bootlets: one initialises the power supply, the next initialises clocks and RAM, and a third optionally creates ATAGS for the Linux kernel command line. Even the Linux kernel can be considered a bootlet. Since a picture is worth a thousand words, here it is, borrowed from <a href="https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/imx-processors/137522/1/i.MX23_Linux_BSP_UserGuide.pdf">i.MX23 Linux BSP User Guide</a>:
 <img width="1004" height="454" alt="Screenshot from 2026-07-17 20-16-25" src="https://github.com/user-attachments/assets/5caf03dd-238f-46db-825d-9a67526fe8a9" /></p>
